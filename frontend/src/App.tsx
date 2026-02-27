@@ -1,85 +1,68 @@
 import { useState, useEffect, useCallback } from 'react'
 import Sidebar, { Page } from './components/Sidebar'
 import Dashboard from './pages/Dashboard'
-import Leads from './pages/Leads'
-import EmailStudio from './pages/EmailStudio'
-import CallCoach from './pages/CallCoach'
-import Knowledge from './pages/Knowledge'
-import Memory from './pages/Memory'
+import PromptLab from './pages/PromptLab'
+import KnowledgeHub from './pages/KnowledgeHub'
+import Challenges from './pages/Challenges'
+import SkillBuilder from './pages/SkillBuilder'
+import PromptLibrary from './pages/PromptLibrary'
 import { get } from './api'
 
-interface Stats {
-  leads: number
-  conversations: number
-  emails: number
-  style_samples: number
+export interface Progress {
+  challenges_completed: number
+  prompts_evaluated: number
+  knowledge_queries: number
+  total_xp: number
+  current_streak: number
+}
+
+const defaultProgress: Progress = {
+  challenges_completed: 0,
+  prompts_evaluated: 0,
+  knowledge_queries: 0,
+  total_xp: 0,
+  current_streak: 0,
 }
 
 export default function App() {
   const [page, setPage] = useState<Page>('dashboard')
-  const [stats, setStats] = useState<Stats>({ leads: 0, conversations: 0, emails: 0, style_samples: 0 })
+  const [progress, setProgress] = useState<Progress>(defaultProgress)
 
-  const loadStats = useCallback(async () => {
+  const loadProgress = useCallback(async () => {
     try {
-      const data = await get<Stats>('/stats')
-      setStats(data)
+      const data = await get<Progress>('/progress')
+      setProgress(data)
     } catch {
-      // Backend not ready yet
+      // Backend may not be ready yet
     }
   }, [])
 
   useEffect(() => {
-    loadStats()
-  }, [loadStats])
+    loadProgress()
+  }, [loadProgress])
 
   const renderPage = () => {
-    const key = page // force remount on page change for animation
     switch (page) {
       case 'dashboard':
-        return <Dashboard key={key} stats={stats} />
-      case 'leads':
-        return <Leads key={key} onStatsRefresh={loadStats} />
-      case 'email':
-        return <EmailStudio key={key} onStatsRefresh={loadStats} />
-      case 'calls':
-        return <CallCoach key={key} />
+        return <Dashboard progress={progress} onNavigate={setPage} />
+      case 'prompt-lab':
+        return <PromptLab onProgressUpdate={loadProgress} />
       case 'knowledge':
-        return <Knowledge key={key} />
-      case 'memory':
-        return <Memory key={key} onStatsRefresh={loadStats} />
+        return <KnowledgeHub onProgressUpdate={loadProgress} />
+      case 'challenges':
+        return <Challenges onProgressUpdate={loadProgress} />
+      case 'skill-builder':
+        return <SkillBuilder />
+      case 'library':
+        return <PromptLibrary />
     }
   }
 
-  const pageTitle: Record<Page, string> = {
-    dashboard: 'Command Center',
-    leads: 'Lead Intelligence',
-    email: 'Email Studio',
-    calls: 'Call Coach',
-    knowledge: 'Product Knowledge',
-    memory: 'Memory & CRM',
-  }
-
   return (
-    <div className="flex h-screen overflow-hidden bg-slate-50">
-      <Sidebar currentPage={page} onNavigate={setPage} stats={stats} />
-
+    <div className="flex h-screen bg-gray-950 text-gray-100 overflow-hidden">
+      <Sidebar currentPage={page} onNavigate={setPage} progress={progress} />
       <main className="flex-1 overflow-y-auto">
-        {/* Top bar */}
-        <div className="sticky top-0 z-10 bg-white border-b border-slate-200 px-6 py-3.5 flex items-center justify-between">
-          <div>
-            <h1 className="font-bold text-slate-900">{pageTitle[page]}</h1>
-            <p className="text-slate-400 text-xs">Powered by Claude Opus · Artemis Distribution</p>
-          </div>
-          <div className="flex items-center gap-2">
-            <div className="w-2 h-2 bg-green-400 rounded-full animate-pulse" />
-            <span className="text-xs text-slate-500 font-medium">AI Online</span>
-          </div>
-        </div>
-
-        {/* Page content */}
-        <div className="p-6">
-          {renderPage()}
-        </div>
+        {renderPage()}
       </main>
     </div>
   )
