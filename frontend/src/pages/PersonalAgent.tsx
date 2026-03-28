@@ -1,4 +1,4 @@
-import { useState } from 'react'
+import { useCallback, useEffect, useRef, useState } from 'react'
 import { Bot, Loader2, Sparkles } from 'lucide-react'
 import { streamPost } from '../api'
 import StreamingText from '../components/StreamingText'
@@ -14,30 +14,58 @@ export default function PersonalAgent() {
   const [privacyBoundaries, setPrivacyBoundaries] = useState('')
   const [output, setOutput] = useState('')
   const [isStreaming, setIsStreaming] = useState(false)
+  const abortRef = useRef<AbortController | null>(null)
 
-  const handleGenerate = async () => {
-    if (!fullName || !topGoals) return
+  useEffect(() => {
+    return () => abortRef.current?.abort()
+  }, [])
+
+  const handleGenerate = useCallback(async () => {
+    if (!fullName.trim() || !topGoals.trim()) return
+
+    abortRef.current?.abort()
+    const controller = new AbortController()
+    abortRef.current = controller
+
     setOutput('')
     setIsStreaming(true)
 
     try {
       for await (const chunk of streamPost('/personal-agent/blueprint', {
-        full_name: fullName,
-        role,
-        top_goals: topGoals,
-        tools,
-        research_domains: researchDomains,
-        shopping_preferences: shoppingPreferences,
-        coding_stack: codingStack,
-        privacy_boundaries: privacyBoundaries,
-      })) {
+        full_name: fullName.trim(),
+        role: role.trim(),
+        top_goals: topGoals.trim(),
+        tools: tools.trim(),
+        research_domains: researchDomains.trim(),
+        shopping_preferences: shoppingPreferences.trim(),
+        coding_stack: codingStack.trim(),
+        privacy_boundaries: privacyBoundaries.trim(),
+      }, controller.signal)) {
         setOutput(prev => prev + chunk)
       }
     } catch (e: any) {
-      setOutput(`Error: ${e.message}`)
+      if (e.name !== 'AbortError') {
+        setOutput(`Error: ${e.message}`)
+      }
     } finally {
       setIsStreaming(false)
+      if (abortRef.current === controller) {
+        abortRef.current = null
+      }
     }
+  }, [
+    codingStack,
+    fullName,
+    privacyBoundaries,
+    researchDomains,
+    role,
+    shoppingPreferences,
+    tools,
+    topGoals,
+  ])
+
+  const handleCancel = () => {
+    abortRef.current?.abort()
   }
 
   return (
@@ -84,11 +112,20 @@ export default function PersonalAgent() {
 
           <button
             onClick={handleGenerate}
-            disabled={!fullName || !topGoals || isStreaming}
+            disabled={!fullName.trim() || !topGoals.trim() || isStreaming}
             className="w-full bg-amber-500 hover:bg-amber-600 disabled:opacity-50 text-white py-2.5 rounded-lg font-semibold text-sm transition-colors flex items-center justify-center gap-2"
           >
             {isStreaming ? <><Loader2 size={15} className="animate-spin" /> Building...</> : <><Sparkles size={15} /> Build My Agent System</>}
           </button>
+
+          {isStreaming && (
+            <button
+              onClick={handleCancel}
+              className="w-full bg-white border border-slate-200 hover:bg-slate-50 text-slate-700 py-2.5 rounded-lg font-semibold text-sm transition-colors"
+            >
+              Stop Generation
+            </button>
+          )}
         </div>
       </div>
 

@@ -5,7 +5,7 @@ from typing import AsyncIterator
 from fastapi import FastAPI, HTTPException
 from fastapi.responses import StreamingResponse
 from fastapi.middleware.cors import CORSMiddleware
-from pydantic import BaseModel
+from pydantic import BaseModel, Field
 import anthropic
 from database import (
     init_db, save_lead, get_leads, delete_lead,
@@ -90,14 +90,14 @@ class DailyBriefRequest(BaseModel):
 
 
 class PersonalAgentBlueprintRequest(BaseModel):
-    full_name: str
-    role: str = ""
-    top_goals: str
-    tools: str = "ChatGPT, Cursor"
-    research_domains: str = ""
-    shopping_preferences: str = ""
-    coding_stack: str = ""
-    privacy_boundaries: str = ""
+    full_name: str = Field(..., min_length=2, max_length=120)
+    role: str = Field(default="", max_length=160)
+    top_goals: str = Field(..., min_length=10, max_length=2500)
+    tools: str = Field(default="ChatGPT, Cursor", max_length=400)
+    research_domains: str = Field(default="", max_length=600)
+    shopping_preferences: str = Field(default="", max_length=600)
+    coding_stack: str = Field(default="", max_length=600)
+    privacy_boundaries: str = Field(default="", max_length=1200)
 
 
 # ─── System prompts ───────────────────────────────────────────────────────────
@@ -524,6 +524,15 @@ Best hooks and personalization angles based on everything we know."""
 
 @app.post("/api/personal-agent/blueprint")
 async def generate_personal_agent_blueprint(req: PersonalAgentBlueprintRequest):
+    full_name = req.full_name.strip()
+    role = req.role.strip()
+    top_goals = req.top_goals.strip()
+    tools = req.tools.strip()
+    research_domains = req.research_domains.strip()
+    shopping_preferences = req.shopping_preferences.strip()
+    coding_stack = req.coding_stack.strip()
+    privacy_boundaries = req.privacy_boundaries.strip()
+
     system = """You are a world-class AI systems architect and prompt engineer.
 
 You build practical, high-performance personal AI agent systems for ambitious operators.
@@ -537,14 +546,14 @@ Output should be tactical and copy/paste ready."""
     prompt = f"""Design my personal agent system with maximum quality.
 
 PROFILE
-- Name: {req.full_name}
-- Role: {req.role or 'Not specified'}
-- Top goals: {req.top_goals}
-- Tools I use: {req.tools}
-- Research domains I care about: {req.research_domains or 'General research'}
-- Shopping preferences: {req.shopping_preferences or 'No preference provided'}
-- Coding stack / interests: {req.coding_stack or 'General software work'}
-- Privacy boundaries: {req.privacy_boundaries or 'No special constraints provided'}
+- Name: {full_name}
+- Role: {role or 'Not specified'}
+- Top goals: {top_goals}
+- Tools I use: {tools}
+- Research domains I care about: {research_domains or 'General research'}
+- Shopping preferences: {shopping_preferences or 'No preference provided'}
+- Coding stack / interests: {coding_stack or 'General software work'}
+- Privacy boundaries: {privacy_boundaries or 'No special constraints provided'}
 
 Return exactly these sections:
 

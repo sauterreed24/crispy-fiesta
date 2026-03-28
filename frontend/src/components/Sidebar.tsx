@@ -66,6 +66,9 @@ export default function Sidebar({ currentPage, onNavigate, stats }: SidebarProps
           >
             <span className="flex-shrink-0">{item.icon}</span>
             <span className="flex-1 text-left">{item.label}</span>
+            {item.badge && currentPage !== item.id && (
+              <span className="text-[10px] px-1.5 py-0.5 rounded bg-slate-700 text-slate-200">{item.badge}</span>
+            )}
             {currentPage === item.id && <ChevronRight size={14} />}
           </button>
         ))}
