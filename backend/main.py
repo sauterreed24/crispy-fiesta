@@ -5,7 +5,7 @@ from typing import AsyncIterator
 from fastapi import FastAPI, HTTPException
 from fastapi.responses import StreamingResponse
 from fastapi.middleware.cors import CORSMiddleware
-from pydantic import BaseModel
+from pydantic import BaseModel, Field
 import anthropic
 from database import (
     init_db, save_lead, get_leads, delete_lead,
@@ -87,6 +87,17 @@ class SynthesisRequest(BaseModel):
 
 class DailyBriefRequest(BaseModel):
     goals: str = "10 dials, 3 meetings"
+
+
+class PersonalAgentBlueprintRequest(BaseModel):
+    full_name: str = Field(..., min_length=2, max_length=120)
+    role: str = Field(default="", max_length=160)
+    top_goals: str = Field(..., min_length=10, max_length=2500)
+    tools: str = Field(default="ChatGPT, Cursor", max_length=400)
+    research_domains: str = Field(default="", max_length=600)
+    shopping_preferences: str = Field(default="", max_length=600)
+    coding_stack: str = Field(default="", max_length=600)
+    privacy_boundaries: str = Field(default="", max_length=1200)
 
 
 # ─── System prompts ───────────────────────────────────────────────────────────
@@ -504,6 +515,96 @@ Best hooks and personalization angles based on everything we know."""
 
     return StreamingResponse(
         stream_claude(prompt),
+        media_type="text/event-stream",
+        headers={"Cache-Control": "no-cache", "X-Accel-Buffering": "no"}
+    )
+
+
+# ── Personal Agent Blueprint ─────────────────────────────────────────────────
+
+@app.post("/api/personal-agent/blueprint")
+async def generate_personal_agent_blueprint(req: PersonalAgentBlueprintRequest):
+    full_name = req.full_name.strip()
+    role = req.role.strip()
+    top_goals = req.top_goals.strip()
+    tools = req.tools.strip()
+    research_domains = req.research_domains.strip()
+    shopping_preferences = req.shopping_preferences.strip()
+    coding_stack = req.coding_stack.strip()
+    privacy_boundaries = req.privacy_boundaries.strip()
+
+    system = """You are a world-class AI systems architect and prompt engineer.
+
+You build practical, high-performance personal AI agent systems for ambitious operators.
+You are precise, honest, and execution-focused.
+
+Important constraint: You cannot directly claim persistent memory across unrelated apps unless the user sets up external memory and integrations.
+Always separate: (1) what works immediately in ChatGPT, (2) what requires optional automation stack, (3) privacy/security guardrails.
+
+Output should be tactical and copy/paste ready."""
+
+    prompt = f"""Design my personal agent system with maximum quality.
+
+PROFILE
+- Name: {full_name}
+- Role: {role or 'Not specified'}
+- Top goals: {top_goals}
+- Tools I use: {tools}
+- Research domains I care about: {research_domains or 'General research'}
+- Shopping preferences: {shopping_preferences or 'No preference provided'}
+- Coding stack / interests: {coding_stack or 'General software work'}
+- Privacy boundaries: {privacy_boundaries or 'No special constraints provided'}
+
+Return exactly these sections:
+
+## 1) REALITY CHECK (IMPORTANT)
+What is and is not possible natively in ChatGPT today. Be explicit and honest.
+
+## 2) PERSONAL AGENT OPERATING SYSTEM
+A concrete architecture with:
+- Brain (ChatGPT usage pattern)
+- Memory layer (what to store + where)
+- Action layer (automations/integrations)
+- Review loop (weekly improvement cycle)
+
+## 3) CHATGPT SETUP PACK (COPY/PASTE)
+Provide:
+A) A "Custom Instructions" block
+B) A "Personal Memory Profile" template
+C) A "Daily Check-in" prompt
+D) A "Weekly Review" prompt
+
+## 4) RESEARCH COPILOT PLAYBOOK
+- A prompt for fast broad research
+- A prompt for source-verified deep research
+- A prompt for decision memo output
+- A 6-point quality checklist for hallucination resistance
+
+## 5) SHOPPING COPILOT PLAYBOOK
+- Prompt for requirement capture
+- Prompt for comparison table + value scoring
+- Prompt for final recommendation with tradeoffs
+- Rules to avoid impulsive purchases
+
+## 6) CODING PROMPT ENGINE FOR CURSOR/LLM IDEs
+Provide:
+- One universal "task brief" template
+- One debugging template
+- One refactor template
+- One test-generation template
+- One code-review template
+Each must include context, constraints, acceptance criteria, and output format.
+
+## 7) 30-DAY ROLLOUT PLAN
+Week-by-week milestones to go from zero to an actually useful personal agent system.
+
+## 8) FIRST 5 COMMANDS TO RUN TODAY
+Give me 5 concrete prompts/commands I can execute right now.
+
+Style: crisp, tactical, high agency. No fluff."""
+
+    return StreamingResponse(
+        stream_claude(prompt, system=system),
         media_type="text/event-stream",
         headers={"Cache-Control": "no-cache", "X-Accel-Buffering": "no"}
     )

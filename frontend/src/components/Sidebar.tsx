@@ -1,8 +1,8 @@
 import {
-  LayoutDashboard, Users, Mail, Phone, BookOpen, Brain, Zap, ChevronRight
+  LayoutDashboard, Users, Mail, Phone, BookOpen, Brain, Bot, Zap, ChevronRight
 } from 'lucide-react'
 
-export type Page = 'dashboard' | 'leads' | 'email' | 'calls' | 'knowledge' | 'memory'
+export type Page = 'dashboard' | 'leads' | 'email' | 'calls' | 'knowledge' | 'memory' | 'personal-agent'
 
 interface NavItem {
   id: Page
@@ -18,6 +18,7 @@ const navItems: NavItem[] = [
   { id: 'calls', label: 'Call Coach', icon: <Phone size={20} /> },
   { id: 'knowledge', label: 'Product KB', icon: <BookOpen size={20} /> },
   { id: 'memory', label: 'Memory / CRM', icon: <Brain size={20} /> },
+  { id: 'personal-agent', label: 'Personal Agent', icon: <Bot size={20} />, badge: 'New' },
 ]
 
 interface SidebarProps {
@@ -65,6 +66,9 @@ export default function Sidebar({ currentPage, onNavigate, stats }: SidebarProps
           >
             <span className="flex-shrink-0">{item.icon}</span>
             <span className="flex-1 text-left">{item.label}</span>
+            {item.badge && currentPage !== item.id && (
+              <span className="text-[10px] px-1.5 py-0.5 rounded bg-slate-700 text-slate-200">{item.badge}</span>
+            )}
             {currentPage === item.id && <ChevronRight size={14} />}
           </button>
         ))}
