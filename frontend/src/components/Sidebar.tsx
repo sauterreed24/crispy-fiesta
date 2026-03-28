@@ -1,8 +1,8 @@
 import {
-  LayoutDashboard, Users, Mail, Phone, BookOpen, Brain, Zap, ChevronRight
+  LayoutDashboard, Users, Mail, Phone, BookOpen, Brain, Bot, Zap, ChevronRight
 } from 'lucide-react'
 
-export type Page = 'dashboard' | 'leads' | 'email' | 'calls' | 'knowledge' | 'memory'
+export type Page = 'dashboard' | 'leads' | 'email' | 'calls' | 'knowledge' | 'memory' | 'personal-agent'
 
 interface NavItem {
   id: Page
@@ -18,6 +18,7 @@ const navItems: NavItem[] = [
   { id: 'calls', label: 'Call Coach', icon: <Phone size={20} /> },
   { id: 'knowledge', label: 'Product KB', icon: <BookOpen size={20} /> },
   { id: 'memory', label: 'Memory / CRM', icon: <Brain size={20} /> },
+  { id: 'personal-agent', label: 'Personal Agent', icon: <Bot size={20} />, badge: 'New' },
 ]
 
 interface SidebarProps {

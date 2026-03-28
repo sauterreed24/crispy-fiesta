@@ -89,6 +89,17 @@ class DailyBriefRequest(BaseModel):
     goals: str = "10 dials, 3 meetings"
 
 
+class PersonalAgentBlueprintRequest(BaseModel):
+    full_name: str
+    role: str = ""
+    top_goals: str
+    tools: str = "ChatGPT, Cursor"
+    research_domains: str = ""
+    shopping_preferences: str = ""
+    coding_stack: str = ""
+    privacy_boundaries: str = ""
+
+
 # ─── System prompts ───────────────────────────────────────────────────────────
 
 BASE_SDR_PROMPT = """You are an elite SDR assistant for Artemis Distribution — a lean, results-obsessed co-pilot for a top-performing rep.
@@ -504,6 +515,87 @@ Best hooks and personalization angles based on everything we know."""
 
     return StreamingResponse(
         stream_claude(prompt),
+        media_type="text/event-stream",
+        headers={"Cache-Control": "no-cache", "X-Accel-Buffering": "no"}
+    )
+
+
+# ── Personal Agent Blueprint ─────────────────────────────────────────────────
+
+@app.post("/api/personal-agent/blueprint")
+async def generate_personal_agent_blueprint(req: PersonalAgentBlueprintRequest):
+    system = """You are a world-class AI systems architect and prompt engineer.
+
+You build practical, high-performance personal AI agent systems for ambitious operators.
+You are precise, honest, and execution-focused.
+
+Important constraint: You cannot directly claim persistent memory across unrelated apps unless the user sets up external memory and integrations.
+Always separate: (1) what works immediately in ChatGPT, (2) what requires optional automation stack, (3) privacy/security guardrails.
+
+Output should be tactical and copy/paste ready."""
+
+    prompt = f"""Design my personal agent system with maximum quality.
+
+PROFILE
+- Name: {req.full_name}
+- Role: {req.role or 'Not specified'}
+- Top goals: {req.top_goals}
+- Tools I use: {req.tools}
+- Research domains I care about: {req.research_domains or 'General research'}
+- Shopping preferences: {req.shopping_preferences or 'No preference provided'}
+- Coding stack / interests: {req.coding_stack or 'General software work'}
+- Privacy boundaries: {req.privacy_boundaries or 'No special constraints provided'}
+
+Return exactly these sections:
+
+## 1) REALITY CHECK (IMPORTANT)
+What is and is not possible natively in ChatGPT today. Be explicit and honest.
+
+## 2) PERSONAL AGENT OPERATING SYSTEM
+A concrete architecture with:
+- Brain (ChatGPT usage pattern)
+- Memory layer (what to store + where)
+- Action layer (automations/integrations)
+- Review loop (weekly improvement cycle)
+
+## 3) CHATGPT SETUP PACK (COPY/PASTE)
+Provide:
+A) A "Custom Instructions" block
+B) A "Personal Memory Profile" template
+C) A "Daily Check-in" prompt
+D) A "Weekly Review" prompt
+
+## 4) RESEARCH COPILOT PLAYBOOK
+- A prompt for fast broad research
+- A prompt for source-verified deep research
+- A prompt for decision memo output
+- A 6-point quality checklist for hallucination resistance
+
+## 5) SHOPPING COPILOT PLAYBOOK
+- Prompt for requirement capture
+- Prompt for comparison table + value scoring
+- Prompt for final recommendation with tradeoffs
+- Rules to avoid impulsive purchases
+
+## 6) CODING PROMPT ENGINE FOR CURSOR/LLM IDEs
+Provide:
+- One universal "task brief" template
+- One debugging template
+- One refactor template
+- One test-generation template
+- One code-review template
+Each must include context, constraints, acceptance criteria, and output format.
+
+## 7) 30-DAY ROLLOUT PLAN
+Week-by-week milestones to go from zero to an actually useful personal agent system.
+
+## 8) FIRST 5 COMMANDS TO RUN TODAY
+Give me 5 concrete prompts/commands I can execute right now.
+
+Style: crisp, tactical, high agency. No fluff."""
+
+    return StreamingResponse(
+        stream_claude(prompt, system=system),
         media_type="text/event-stream",
         headers={"Cache-Control": "no-cache", "X-Accel-Buffering": "no"}
     )

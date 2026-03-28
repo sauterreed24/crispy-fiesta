@@ -6,6 +6,7 @@ import EmailStudio from './pages/EmailStudio'
 import CallCoach from './pages/CallCoach'
 import Knowledge from './pages/Knowledge'
 import Memory from './pages/Memory'
+import PersonalAgent from './pages/PersonalAgent'
 import { get } from './api'
 
 interface Stats {
@@ -47,6 +48,8 @@ export default function App() {
         return <Knowledge key={key} />
       case 'memory':
         return <Memory key={key} onStatsRefresh={loadStats} />
+      case 'personal-agent':
+        return <PersonalAgent key={key} />
     }
   }
 
@@ -57,6 +60,7 @@ export default function App() {
     calls: 'Call Coach',
     knowledge: 'Product Knowledge',
     memory: 'Memory & CRM',
+    'personal-agent': 'Personal Agent Builder',
   }
 
   return (
