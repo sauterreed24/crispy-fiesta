@@ -1,22 +1,21 @@
 import os
 import json
-import asyncio
 from typing import AsyncIterator
-from fastapi import FastAPI, HTTPException
+
+from fastapi import FastAPI
 from fastapi.responses import StreamingResponse
 from fastapi.middleware.cors import CORSMiddleware
 from pydantic import BaseModel, Field
 import anthropic
+
 from database import (
-    init_db, save_lead, get_leads, delete_lead,
-    save_conversation, get_conversations, get_prospect_history, delete_conversation,
-    save_email, get_emails,
-    save_style_sample, get_style_samples, delete_style_sample,
-    save_knowledge_note, get_knowledge_notes,
-    get_stats
+    init_db, get_progress, update_progress,
+    save_prompt, get_prompts, delete_prompt,
+    save_challenge, get_challenge_history,
+    save_note, get_notes,
 )
 
-app = FastAPI(title="SDR Assistant API", version="1.0.0")
+app = FastAPI(title="AI Mastery Hub API", version="2.0.0")
 
 app.add_middleware(
     CORSMiddleware,
@@ -27,67 +26,62 @@ app.add_middleware(
 )
 
 client = anthropic.Anthropic(api_key=os.environ.get("ANTHROPIC_API_KEY", ""))
-
 MODEL = "claude-opus-4-6"
 
 
-# ─── Pydantic models ─────────────────────────────────────────────────────────
+# ─── Pydantic Models ──────────────────────────────────────────────────────────
 
-class LeadResearchRequest(BaseModel):
-    name: str
-    company: str
-    title: str = ""
+class PromptEvalRequest(BaseModel):
+    prompt: str
     context: str = ""
-    save: bool = False
+    goal: str = ""
 
-class SaveLeadRequest(BaseModel):
-    name: str
-    company: str
-    title: str = ""
-    notes: str = ""
-    research: str = ""
+class PromptImproveRequest(BaseModel):
+    prompt: str
+    feedback: str = ""
+    technique: str = ""
 
-class EmailRequest(BaseModel):
-    recipient_name: str
-    recipient_title: str = ""
-    company: str
-    industry: str = ""
-    context: str = ""
-    email_type: str = "cold_outreach"
-    save: bool = False
+class TechniqueRequest(BaseModel):
+    technique: str
 
-class CallCoachRequest(BaseModel):
-    transcript: str
-    prospect_name: str = "Prospect"
-    company: str = ""
-
-class KnowledgeRequest(BaseModel):
+class KnowledgeAskRequest(BaseModel):
     question: str
+    depth: str = "intermediate"
+
+class ModelCompareRequest(BaseModel):
+    models: list[str] = ["Claude", "GPT-4"]
+    task: str = "general reasoning"
+
+class ChallengeGenerateRequest(BaseModel):
+    difficulty: str = "intermediate"
+    focus: str = "general"
+
+class ChallengeScoreRequest(BaseModel):
+    challenge: str
+    user_response: str
+    difficulty: str = "intermediate"
+
+class SkillBuildRequest(BaseModel):
+    skill: str
+    current_level: str = "beginner"
+    goal: str = ""
+
+class ProjectIdeasRequest(BaseModel):
+    skill: str
+    level: str = "intermediate"
+
+class SavePromptRequest(BaseModel):
+    title: str
+    prompt: str
     category: str = "general"
+    technique: str = ""
+    tags: str = ""
+    notes: str = ""
 
-class ConversationRequest(BaseModel):
-    prospect_name: str
-    company: str
-    call_date: str
-    outcome: str
-    notes: str
-    next_steps: str = ""
-
-class StyleSampleRequest(BaseModel):
-    sample_text: str
-    label: str = ""
-
-class KnowledgeNoteRequest(BaseModel):
-    category: str
+class SaveNoteRequest(BaseModel):
+    topic: str
     content: str
-
-class SynthesisRequest(BaseModel):
-    prospect_name: str
-    company: str
-
-class DailyBriefRequest(BaseModel):
-    goals: str = "10 dials, 3 meetings"
-
+    category: str = "general"
 
 class PersonalAgentBlueprintRequest(BaseModel):
     full_name: str = Field(..., min_length=2, max_length=120)
@@ -100,427 +94,521 @@ class PersonalAgentBlueprintRequest(BaseModel):
     privacy_boundaries: str = Field(default="", max_length=1200)
 
 
-# ─── System prompts ───────────────────────────────────────────────────────────
+# ─── Streaming Helper ─────────────────────────────────────────────────────────
 
-BASE_SDR_PROMPT = """You are an elite SDR assistant for Artemis Distribution — a lean, results-obsessed co-pilot for a top-performing rep.
-
-Artemis Distribution is a distributor of premium industrial/commercial products including:
-- T-Shape 2: A next-gen distribution solution built for efficiency and scalability
-- NeoGen: A premium product line focused on performance and reliability
-
-Your voice: Direct. Punchy. Confident. You sound like a top 1% rep giving advice to a peer — not a textbook. No fluff, no corporate speak. Short sentences. High signal.
-
-You help the rep:
-1. Research and personalize outreach for any lead
-2. Write emails that actually get replies
-3. Coach calls to sharpen skills
-4. Remember and recall every prospect interaction
-5. Own product knowledge cold
-
-Always be actionable. Always make it easy to execute."""
-
-
-def build_style_context(samples: list) -> str:
-    if not samples:
-        return ""
-    sample_texts = "\n\n---\n\n".join(
-        [f"Sample {i+1}:\n{s['sample_text']}" for i, s in enumerate(samples[:5])]
-    )
-    return f"""
-WRITING STYLE REFERENCE (match this person's voice):
-{sample_texts}
-
-Analyze: sentence length, tone, vocabulary, how they open/close, level of formality, use of humor, punctuation style. Mirror it precisely.
-"""
-
-
-async def stream_claude(prompt: str, system: str = BASE_SDR_PROMPT) -> AsyncIterator[str]:
-    """Stream Claude responses as SSE data chunks."""
+async def stream_claude(
+    prompt: str, system: str, max_tokens: int = 2048
+) -> AsyncIterator[str]:
     with client.messages.stream(
         model=MODEL,
-        max_tokens=2048,
-        thinking={"type": "adaptive"},
+        max_tokens=max_tokens,
         system=system,
-        messages=[{"role": "user", "content": prompt}]
+        messages=[{"role": "user", "content": prompt}],
     ) as stream:
         for text in stream.text_stream:
             yield f"data: {json.dumps({'text': text})}\n\n"
     yield "data: [DONE]\n\n"
 
 
-# ─── Routes ───────────────────────────────────────────────────────────────────
+# ─── System Prompts ───────────────────────────────────────────────────────────
+
+PROMPT_EXPERT_SYSTEM = """You are a world-class prompt engineering expert equivalent to senior researchers at Anthropic, OpenAI, and Google DeepMind.
+
+Your expertise spans every prompting technique: chain-of-thought, few-shot, zero-shot, tree-of-thought, self-consistency, ReAct, meta-prompting, constitutional prompting, least-to-most, directional stimulus, self-critique, prompt chaining, structured output design, system prompt architecture, persona design, adversarial robustness, and more.
+
+You have deep understanding of:
+- Why each technique works at the model-behavior level (not just surface patterns)
+- How model training (RLHF, Constitutional AI, DPO) shapes how prompts land
+- Model-specific optimization differences between Claude, GPT-4o, Gemini, and open models
+- Production-grade prompt engineering for agents, tools, and complex pipelines
+- Adversarial prompting and prompt injection defense
+
+Your teaching style: Expert-level, precise, with concrete examples. You name techniques correctly, explain mechanisms (not just outcomes), and share insider knowledge that separates professionals from amateurs. Short sentences. High signal. No fluff."""
+
+AI_KNOWLEDGE_SYSTEM = """You are a senior AI researcher and educator with deep expertise in:
+- Transformer architectures, attention mechanisms, positional encoding, and architectural variants (GPT, BERT, T5, Llama, Mistral, Mamba)
+- Training methodologies: pretraining, instruction tuning, RLHF, DPO, Constitutional AI, RLAIF
+- Inference: quantization, speculative decoding, KV caching, batching, flash attention
+- Scaling laws, emergent capabilities, and phase transitions
+- AI safety and alignment: reward hacking, RLHF limits, interpretability, superposition
+- Evaluation: MMLU, HumanEval, HellaSwag, BIG-Bench and their limitations
+- RAG architectures, embeddings, vector databases, chunking strategies
+- AI agents: tool use, function calling, multi-agent systems, memory architectures
+- Multimodal AI: CLIP, vision-language models, diffusion models
+- The research landscape at Anthropic, OpenAI, Google DeepMind, Meta AI, Mistral
+
+Style: Technically precise but accessible. Bridge theory and practice. Use analogies without sacrificing accuracy. Share the nuanced understanding that comes from actually working with these systems."""
+
+CHALLENGE_SYSTEM = """You are an elite prompt engineering challenge designer and evaluator — the kind used in training programs at top AI companies.
+
+You create challenges that test real, high-value skills: clarity and specificity, output format control, few-shot example quality, CoT elicitation, persona and system design, constraint engineering, prompt robustness, multi-step reasoning, and adversarial defense.
+
+You evaluate with the precision of a senior AI engineer reviewing prompts for production use. You reward sophistication, penalize ambiguity, and always show the ideal solution."""
+
+
+# ─── Startup ──────────────────────────────────────────────────────────────────
 
 @app.on_event("startup")
 async def startup():
     await init_db()
 
 
-@app.get("/api/stats")
-async def get_dashboard_stats():
-    return await get_stats()
+@app.get("/api/progress")
+async def get_user_progress():
+    return await get_progress()
 
 
-# ── Lead Intelligence ─────────────────────────────────────────────────────────
+# ─── Prompt Lab ──────────────────────────────────────────────────────────────
 
-@app.post("/api/leads/research")
-async def research_lead(req: LeadResearchRequest):
-    history = await get_prospect_history(req.name, req.company)
-    history_context = ""
-    if history:
-        history_context = f"\n\nPROSPECT HISTORY ({len(history)} previous touchpoints):\n"
-        for h in history[:3]:
-            history_context += f"- {h['call_date']}: {h['outcome']} | {h['notes'][:100]}\n"
+@app.post("/api/prompt/evaluate")
+async def evaluate_prompt(req: PromptEvalRequest):
+    await update_progress("prompts_evaluated", 1, 10)
 
-    prompt = f"""Research this lead and give me the intel I need to have a killer first conversation.
+    prompt = f"""Evaluate this prompt with expert-level analysis.
 
-LEAD INFO:
-- Name: {req.name}
-- Company: {req.company}
-- Title: {req.title or 'Unknown'}
-- Additional context: {req.context or 'None'}
-{history_context}
-
-Give me (be specific and punchy, not generic):
-
-## 🎯 Company Snapshot
-2-3 sentences: What they do, their market position, any recent news/signals worth knowing.
-
-## 👤 Persona Intel
-Based on their title ({req.title or 'unknown title'}), what are the TOP 3 pain points this person loses sleep over? What do they care about?
-
-## 🪝 Personalization Hooks
-3 specific icebreakers or angles I can use to make the outreach feel like I did my homework (NOT generic). Reference their industry, company stage, role-specific challenges.
-
-## 📞 Talk Track Starter
-How should I open this call? Give me a 2-sentence opener that's confident, not needy.
-
-## ⚡ Value Props to Lead With
-Top 2 reasons Artemis Distribution / our products solve THEIR specific problem. Make it about them, not us.
-
-## 🚨 Likely Objections
-Top 2 objections I'll hit and a one-liner reframe for each.
-
-## ✅ Qualification Questions
-3 sharp discovery questions to qualify this lead fast.
-
-Keep everything tight, direct, and immediately usable."""
-
-    return StreamingResponse(
-        stream_claude(prompt),
-        media_type="text/event-stream",
-        headers={"Cache-Control": "no-cache", "X-Accel-Buffering": "no"}
-    )
-
-
-@app.post("/api/leads/save")
-async def save_lead_endpoint(req: SaveLeadRequest):
-    lead_id = await save_lead(req.name, req.company, req.title, req.notes, req.research)
-    return {"id": lead_id, "message": "Lead saved"}
-
-
-@app.get("/api/leads")
-async def list_leads(search: str = ""):
-    return await get_leads(search)
-
-
-@app.delete("/api/leads/{lead_id}")
-async def remove_lead(lead_id: int):
-    await delete_lead(lead_id)
-    return {"message": "Deleted"}
-
-
-# ── Email Studio ──────────────────────────────────────────────────────────────
-
-@app.post("/api/emails/generate")
-async def generate_email(req: EmailRequest):
-    style_samples = await get_style_samples()
-    style_context = build_style_context(style_samples)
-
-    email_type_map = {
-        "cold_outreach": "cold outreach (first touch)",
-        "follow_up": "follow-up after no response",
-        "post_call": "post-call follow-up",
-        "nurture": "nurture / stay-in-touch",
-        "breakup": "breakup email (final attempt)"
-    }
-    email_type_label = email_type_map.get(req.email_type, req.email_type)
-
-    history = await get_prospect_history(req.recipient_name, req.company)
-    history_context = ""
-    if history:
-        history_context = f"\n\nPROSPECT HISTORY:\n"
-        for h in history[:2]:
-            history_context += f"- {h['call_date']}: {h['outcome']}\n"
-
-    prompt = f"""Write a {email_type_label} email for this prospect.
-
-RECIPIENT:
-- Name: {req.recipient_name}
-- Title: {req.recipient_title or 'Unknown'}
-- Company: {req.company}
-- Industry: {req.industry or 'Unknown'}
-- Additional context / research: {req.context or 'None provided'}
-{history_context}
-{style_context}
-
-EMAIL RULES (non-negotiable):
-- Subject line: 3-6 words, creates curiosity or pain, NOT "Quick question" or "Following up"
-- Opening line: Specific hook related to THEM — NOT "Hope you're well" or "I came across your profile"
-- Body: Under 100 words for cold, under 75 for follow-up
-- ONE clear CTA — specific ask with specific time (e.g., "15 min Thursday 2pm?")
-- Signature: Just first name, no title fluff
-- Sound like a human peer, not a sales robot
-- If follow-up: Reference the last touchpoint subtly
-
-Format your response as:
-SUBJECT: [subject line]
-
-[email body]
-
-Then below the email, add:
+PROMPT TO EVALUATE:
 ---
-💡 WHY THIS WORKS: [2-sentence explanation of the strategy used]
-🔄 ALT SUBJECT: [one alternative subject line]"""
+{req.prompt}
+---
+
+GOAL / USE CASE: {req.goal or "Not specified"}
+CONTEXT: {req.context or "None"}
+
+## 🎯 OVERALL SCORE: [X/100]
+[One-sentence verdict]
+
+## ✅ STRENGTHS
+For each strength, explain WHY it's effective at the model-behavior level — what does this actually do inside the model?
+
+## ⚠️ WEAKNESSES & FAILURE MODES
+For each weakness, describe the specific failure mode it creates. What will the model actually do wrong?
+
+## 📊 DIMENSION SCORES (1–10 each)
+- **Clarity**: [score] — [why]
+- **Specificity**: [score] — [why]
+- **Context richness**: [score] — [why]
+- **Output format control**: [score] — [why]
+- **Constraint quality**: [score] — [why]
+- **Technique sophistication**: [score] — [why]
+
+## 🔍 TECHNIQUES IDENTIFIED
+Name every prompting technique present (or conspicuously absent).
+
+## 🚨 CRITICAL ISSUES
+Any fundamental flaws that will severely limit effectiveness?
+
+## 💡 EXPERT INSIGHT
+One key observation only an expert would notice — what a beginner would completely miss.
+
+Be brutally honest. This person wants to become world-class."""
 
     return StreamingResponse(
-        stream_claude(prompt),
+        stream_claude(prompt, PROMPT_EXPERT_SYSTEM),
         media_type="text/event-stream",
-        headers={"Cache-Control": "no-cache", "X-Accel-Buffering": "no"}
+        headers={"Cache-Control": "no-cache", "X-Accel-Buffering": "no"},
     )
 
 
-@app.post("/api/emails/save")
-async def save_email_endpoint(data: dict):
-    email_id = await save_email(
-        data.get("recipient_name", ""),
-        data.get("company", ""),
-        data.get("subject", ""),
-        data.get("body", ""),
-        data.get("email_type", "")
-    )
-    return {"id": email_id, "message": "Email saved"}
+@app.post("/api/prompt/improve")
+async def improve_prompt(req: PromptImproveRequest):
+    technique_ctx = f"\nApply / focus on technique: {req.technique}" if req.technique else ""
+    feedback_ctx = f"\nUser's improvement goal: {req.feedback}" if req.feedback else ""
 
+    prompt = f"""Transform this prompt into an elite, production-quality version.
 
-@app.get("/api/emails")
-async def list_emails(limit: int = 20):
-    return await get_emails(limit)
+ORIGINAL PROMPT:
+---
+{req.prompt}
+---
+{technique_ctx}
+{feedback_ctx}
 
+## 🔧 TRANSFORMATION STRATEGY
+Before showing the improved version: what are the 3 most impactful changes you're making and why?
 
-@app.post("/api/style/samples")
-async def add_style_sample(req: StyleSampleRequest):
-    sample_id = await save_style_sample(req.sample_text, req.label)
-    return {"id": sample_id, "message": "Style sample saved — AI will now write like you"}
+## ✨ IMPROVED PROMPT
+```
+[Complete improved prompt — this should be dramatically better]
+```
 
+## 📈 IMPROVEMENT BREAKDOWN
+For each major change:
+- **Change**: [what changed]
+- **Technique**: [name the specific prompting technique]
+- **Expected impact**: [how this changes model behavior]
 
-@app.get("/api/style/samples")
-async def list_style_samples():
-    return await get_style_samples()
+## 🎓 TRANSFERABLE LESSONS
+The 2–3 principles that will make ALL your future prompts better, extracted from this example.
 
-
-@app.delete("/api/style/samples/{sample_id}")
-async def remove_style_sample(sample_id: int):
-    await delete_style_sample(sample_id)
-    return {"message": "Deleted"}
-
-
-# ── Call Coach ────────────────────────────────────────────────────────────────
-
-@app.post("/api/calls/coach")
-async def coach_call(req: CallCoachRequest):
-    prompt = f"""Analyze this SDR call transcript and give expert coaching.
-
-PROSPECT: {req.prospect_name} at {req.company or 'unknown company'}
-
-TRANSCRIPT:
-{req.transcript}
-
-─────────────────────────────────────
-COACHING REPORT
-─────────────────────────────────────
-
-## 📊 CALL GRADE: [A/B/C/D/F]
-[1-sentence verdict]
-
-## ✅ TOP 3 WINS
-What actually worked. Be specific with timestamps or exact lines.
-1.
-2.
-3.
-
-## 🔧 TOP 3 FIXES (Most Impactful)
-For each: Quote the actual line → then show the better version
-1. **Said:** "..." → **Better:** "..."
-2. **Said:** "..." → **Better:** "..."
-3. **Said:** "..." → **Better:** "..."
-
-## 🎯 #1 THING TO FIX IMMEDIATELY
-The single highest-leverage change for next call.
-
-## 🛡️ OBJECTION HANDLING ANALYSIS
-How did they handle objections? Grade each one. Better reframe if needed.
-
-## 📈 METRICS ESTIMATE
-- Talk/Listen ratio: [estimate %]
-- Filler words: [common ones spotted]
-- Energy level: [1-10]
-- Discovery depth: [1-10]
-
-## 🏆 NEXT CALL GAME PLAN
-Top 3 things to do differently next call with this prospect or similar calls.
-
-Keep it real, direct, and actionable. This rep wants the truth, not cheerleading."""
+## 🔬 ALTERNATIVE VARIANTS
+Two different approaches to the same goal, with notes on when each is optimal."""
 
     return StreamingResponse(
-        stream_claude(prompt),
+        stream_claude(prompt, PROMPT_EXPERT_SYSTEM),
         media_type="text/event-stream",
-        headers={"Cache-Control": "no-cache", "X-Accel-Buffering": "no"}
+        headers={"Cache-Control": "no-cache", "X-Accel-Buffering": "no"},
     )
 
 
-# ── Product Knowledge ─────────────────────────────────────────────────────────
+@app.post("/api/prompt/explain-technique")
+async def explain_technique(req: TechniqueRequest):
+    prompt = f"""Teach the "{req.technique}" prompting technique at expert depth.
+
+## 🧠 WHAT IT IS
+Precise technical definition. What is actually happening in the model when this technique is applied?
+
+## 🔬 THE SCIENCE
+Why does this work? What does research show? Name specific papers or findings where relevant.
+
+## 📊 WHEN TO USE vs. AVOID
+Exact scenarios where this excels and where it fails or underperforms.
+
+## 🏗️ CANONICAL TEMPLATE
+```
+[Template structure with inline annotations explaining each part]
+```
+
+## 💎 EXAMPLES
+
+### Beginner Application:
+```
+[Example prompt]
+```
+[What makes this work]
+
+### Expert Application:
+```
+[Sophisticated example]
+```
+[The nuances an expert would notice — what separates this from the basic version]
+
+## ⚡ POWER COMBINATIONS
+What techniques pair especially well with this one and why?
+
+## 🚫 COMMON MISTAKES
+The 3 ways practitioners mess this up (with corrected versions).
+
+## 📚 GO DEEPER
+Key papers, researchers, or resources for mastering this technique."""
+
+    return StreamingResponse(
+        stream_claude(prompt, PROMPT_EXPERT_SYSTEM, max_tokens=3000),
+        media_type="text/event-stream",
+        headers={"Cache-Control": "no-cache", "X-Accel-Buffering": "no"},
+    )
+
+
+# ─── Knowledge Hub ───────────────────────────────────────────────────────────
 
 @app.post("/api/knowledge/ask")
-async def ask_knowledge(req: KnowledgeRequest):
-    custom_notes = await get_knowledge_notes()
-    custom_context = ""
-    if custom_notes:
-        custom_context = "\n\nCUSTOM PRODUCT NOTES (from the rep's own knowledge base):\n"
-        for note in custom_notes:
-            custom_context += f"[{note['category']}] {note['content']}\n"
+async def ask_knowledge(req: KnowledgeAskRequest):
+    await update_progress("knowledge_queries", 1, 5)
 
-    knowledge_system = f"""You are an expert product specialist and sales trainer for Artemis Distribution.
-
-ARTEMIS DISTRIBUTION PRODUCT PORTFOLIO:
-
-**T-Shape 2:**
-- What it is: A premium distribution solution designed for scalability and operational efficiency
-- Key differentiators: Advanced performance metrics, superior reliability, faster deployment vs competitors
-- Ideal customer: Mid-to-enterprise businesses needing reliable distribution infrastructure
-- Core pain it solves: Operational bottlenecks, scalability limitations, high maintenance costs
-- 30-second pitch: "T-Shape 2 is built for businesses that can't afford downtime. It cuts deployment time by 40% and scales without the typical growing pains."
-- Common objections: Price → "What's the cost of your current inefficiency?", Timing → "That's exactly when companies like yours need this locked in."
-
-**NeoGen:**
-- What it is: A next-generation performance product line delivering superior results
-- Key differentiators: Enhanced performance output, longer lifecycle, proven ROI
-- Ideal customer: Performance-driven organizations prioritizing quality over cost
-- Core pain it solves: Underperformance, frequent replacement cycles, inconsistent results
-- 30-second pitch: "NeoGen is for companies tired of good enough. It outperforms alternatives by 35% and pays for itself within 6 months."
-- Common objections: "We have a vendor" → "Are they giving you these numbers?"
-
-**SDR BEST PRACTICES for Artemis:**
-- Lead with pain, not product
-- Use metrics and social proof whenever possible
-- Target decision-makers: VP Ops, Director of Distribution, COO, Owner at SMB
-- Best industries: Manufacturing, logistics, wholesale distribution, construction
-- Average deal size context: Position as an investment, not an expense
-{custom_context}
-
-Your response style: Punchy, memorable, immediately usable. Use analogies. Give talk tracks. Make it stick.
-Sound like a top rep coaching their peer — not a manual."""
+    depth_instruction = {
+        "beginner": "Explain accessibly. Build intuition with analogies before introducing jargon. Assume no ML background.",
+        "intermediate": "Assume CS/ML background. Go into meaningful technical detail. Connect theory to practical implications.",
+        "expert": "Assume deep ML/AI research background. Be highly technical. Discuss nuances, open research questions, competing approaches, and limitations.",
+    }.get(req.depth, "intermediate")
 
     prompt = f"""Question: {req.question}
 
-Give me an answer that:
-1. Gets to the point in the first sentence
-2. Uses a memorable analogy or hook if helpful
-3. Includes a ready-to-use talk track or one-liner I can deploy on a call TODAY
-4. Flags any objections I'll likely face on this topic and how to handle them
+Depth: {req.depth}
+Instruction: {depth_instruction}
 
-Keep it tight. Max 200 words unless the question needs more."""
+Structure your answer to maximize learning and retention:
+- Start with the core insight in 1–2 sentences
+- Build depth progressively
+- Include practical implications for AI use and prompt engineering
+- Correct common misconceptions
+- Connect to real systems, models, or research when relevant
+
+Be precise. Be insightful. Give the kind of understanding that separates practitioners from people who just use AI."""
 
     return StreamingResponse(
-        stream_claude(prompt, system=knowledge_system),
+        stream_claude(prompt, AI_KNOWLEDGE_SYSTEM, max_tokens=3000),
         media_type="text/event-stream",
-        headers={"Cache-Control": "no-cache", "X-Accel-Buffering": "no"}
+        headers={"Cache-Control": "no-cache", "X-Accel-Buffering": "no"},
     )
 
 
-@app.post("/api/knowledge/notes")
-async def add_knowledge_note(req: KnowledgeNoteRequest):
-    note_id = await save_knowledge_note(req.category, req.content)
-    return {"id": note_id, "message": "Knowledge note saved"}
+@app.post("/api/knowledge/compare-models")
+async def compare_models(req: ModelCompareRequest):
+    model_list = " vs ".join(req.models)
 
+    prompt = f"""Compare {model_list} for: {req.task}
 
-@app.get("/api/knowledge/notes")
-async def list_knowledge_notes(category: str = ""):
-    return await get_knowledge_notes(category)
+Give a technically grounded, practitioner-focused comparison. No marketing fluff.
 
+## Head-to-Head Comparison
 
-# ── Memory / CRM ──────────────────────────────────────────────────────────────
+| Dimension | {" | ".join(req.models)} |
+|-----------|{"---|" * len(req.models)}
+[Fill key technical and practical dimensions]
 
-@app.post("/api/memory/conversations")
-async def log_conversation(req: ConversationRequest):
-    conv_id = await save_conversation(
-        req.prospect_name, req.company, req.call_date,
-        req.outcome, req.notes, req.next_steps
+## For Prompt Engineers
+How does prompting differ between these models? What works uniquely well or poorly on each?
+
+## Best Use Cases for Each
+When would you choose one over the others? Be specific.
+
+## Technical Differences That Matter
+Architecture, training, alignment methodology differences that affect real-world behavior.
+
+## Honest Practitioner Assessment
+The real tradeoffs. What do people discover after using each model extensively?"""
+
+    return StreamingResponse(
+        stream_claude(prompt, AI_KNOWLEDGE_SYSTEM, max_tokens=3000),
+        media_type="text/event-stream",
+        headers={"Cache-Control": "no-cache", "X-Accel-Buffering": "no"},
     )
-    return {"id": conv_id, "message": "Conversation logged"}
 
 
-@app.get("/api/memory/conversations")
-async def list_conversations(search: str = ""):
-    return await get_conversations(search)
+# ─── Challenges ──────────────────────────────────────────────────────────────
+
+@app.post("/api/challenge/generate")
+async def generate_challenge(req: ChallengeGenerateRequest):
+    focus_map = {
+        "general": "any high-value prompting skill",
+        "chain-of-thought": "chain-of-thought and multi-step reasoning elicitation",
+        "few-shot": "few-shot learning and in-context example design",
+        "system-design": "system prompt architecture and instruction design",
+        "output-format": "structured output and format control",
+        "persona": "persona, role, and character design",
+        "adversarial": "prompt injection defense and robustness",
+        "creative": "creative and generative prompting",
+        "code": "code generation and debugging prompts",
+        "analysis": "analytical reasoning and decomposition tasks",
+    }
+    focus_desc = focus_map.get(req.focus, req.focus)
+
+    prompt = f"""Generate a prompt engineering challenge.
+
+DIFFICULTY: {req.difficulty}
+FOCUS: {focus_desc}
+
+Format EXACTLY as follows:
+
+## 🎯 CHALLENGE: [Title]
+**Difficulty**: {req.difficulty.capitalize()}
+**Focus**: {req.focus}
+**Time estimate**: [X minutes]
+
+### The Scenario
+[2–3 sentences: the context and why this skill matters in real practice]
+
+### Your Task
+[Clear, specific description of what the user must accomplish. What final output do they need to produce?]
+
+### Constraints
+- [Constraint 1]
+- [Constraint 2]
+- [Constraint 3]
+
+### Success Criteria
+Your prompt works when:
+- [Measurable criterion 1]
+- [Measurable criterion 2]
+- [Measurable criterion 3]
+
+### Hint *(expand if stuck)*
+> [Points toward the right technique without giving away the answer]
+
+### Skills Tested
+[List 2–4 specific techniques this challenge exercises]
+
+Make it genuinely challenging and educational. Use real-world scenarios, not contrived ones."""
+
+    return StreamingResponse(
+        stream_claude(prompt, CHALLENGE_SYSTEM, max_tokens=1500),
+        media_type="text/event-stream",
+        headers={"Cache-Control": "no-cache", "X-Accel-Buffering": "no"},
+    )
 
 
-@app.delete("/api/memory/conversations/{conv_id}")
-async def remove_conversation(conv_id: int):
-    await delete_conversation(conv_id)
+@app.post("/api/challenge/score")
+async def score_challenge(req: ChallengeScoreRequest):
+    await update_progress("challenges_completed", 1, 25)
+
+    prompt = f"""Score and give expert feedback on this prompt engineering challenge attempt.
+
+THE CHALLENGE:
+{req.challenge}
+
+USER'S SUBMITTED PROMPT:
+---
+{req.user_response}
+---
+
+DIFFICULTY: {req.difficulty}
+
+## 📊 SCORE: [X/100]
+[One-sentence verdict on this attempt]
+
+## ✅ WHAT WORKED
+Specific elements done well with explanation of WHY they're effective at the model-behavior level.
+
+## ⚠️ WHAT TO IMPROVE
+Specific weaknesses with line-by-line better alternatives where relevant.
+
+## 🏆 MODEL SOLUTION
+```
+[Show an exemplary solution — this is the gold standard]
+```
+[Brief explanation of why this solution is optimal]
+
+## 📚 KEY LEARNING
+The single most important insight from this challenge.
+
+## 🎯 NEXT STEPS
+What specific technique or concept should they study next, based on this attempt?"""
+
+    return StreamingResponse(
+        stream_claude(prompt, CHALLENGE_SYSTEM, max_tokens=2000),
+        media_type="text/event-stream",
+        headers={"Cache-Control": "no-cache", "X-Accel-Buffering": "no"},
+    )
+
+
+# ─── Skill Builder ───────────────────────────────────────────────────────────
+
+@app.post("/api/skill/build")
+async def build_skill(req: SkillBuildRequest):
+    prompt = f"""Create a personalized AI-accelerated learning roadmap for mastering this skill.
+
+SKILL: {req.skill}
+CURRENT LEVEL: {req.current_level}
+GOAL: {req.goal or "Become genuinely expert-level"}
+
+## 🗺️ PERSONALIZED LEARNING ROADMAP
+
+### Phase 1: Foundation *(adjust based on current level)*
+[What to learn, in what order, what to prioritize]
+
+### Phase 2: Core Competency
+[The essential skills and knowledge — what separates beginners from competent practitioners]
+
+### Phase 3: Advanced Mastery
+[What separates experts from intermediates — the non-obvious stuff]
+
+## 🚀 START RIGHT NOW
+The single most impactful action in the next 30 minutes. Be specific.
+
+## 🤖 HOW TO USE AI TO ACCELERATE LEARNING
+
+### For Understanding Concepts:
+```
+[Ready-to-use prompt template for learning {req.skill} with AI]
+```
+
+### For Practice & Feedback:
+```
+[Prompt template for getting structured practice and critique]
+```
+
+### For Building Projects:
+```
+[Prompt template for AI-assisted project development]
+```
+
+## 📚 HIGHEST-SIGNAL RESOURCES
+Top 3–5 resources ranked by learning ROI. Include free options.
+
+## 🏆 MASTERY MILESTONES
+Concrete, measurable checkpoints:
+- [ ] **Beginner**: [specific milestone]
+- [ ] **Intermediate**: [specific milestone]
+- [ ] **Advanced**: [specific milestone]
+- [ ] **Expert**: [specific milestone]
+
+## ⚡ PRO SHORTCUTS
+What do top practitioners know that most learners completely miss?"""
+
+    return StreamingResponse(
+        stream_claude(prompt, PROMPT_EXPERT_SYSTEM, max_tokens=3000),
+        media_type="text/event-stream",
+        headers={"Cache-Control": "no-cache", "X-Accel-Buffering": "no"},
+    )
+
+
+@app.post("/api/skill/projects")
+async def project_ideas(req: ProjectIdeasRequest):
+    prompt = f"""Generate 5 high-impact project ideas for mastering {req.skill} at {req.level} level using AI as a collaborator.
+
+For each project:
+
+## Project [N]: [Name]
+**Why this project**: [Why it's high-leverage for learning this specific skill]
+**What you'll build**: [Specific, tangible output]
+**Skills developed**: [List]
+**Time estimate**: [Realistic estimate]
+
+**AI-Assisted Development Approach**:
+Step-by-step how to use AI to build faster and learn more deeply:
+1. [Step with specific prompt strategy]
+2. [Step with specific prompt strategy]
+3. [Step with specific prompt strategy]
+
+**Starter Prompt**:
+```
+[Ready-to-use prompt to kick off this exact project]
+```
+
+**Stretch goals**: [Extensions once the base is done]
+
+---
+
+Make these genuinely exciting and educational. Real projects that build real skills."""
+
+    return StreamingResponse(
+        stream_claude(prompt, PROMPT_EXPERT_SYSTEM, max_tokens=3000),
+        media_type="text/event-stream",
+        headers={"Cache-Control": "no-cache", "X-Accel-Buffering": "no"},
+    )
+
+
+# ─── Prompt Library ──────────────────────────────────────────────────────────
+
+@app.post("/api/library/save")
+async def save_to_library(req: SavePromptRequest):
+    prompt_id = await save_prompt(
+        req.title, req.prompt, req.category, req.technique, req.tags, req.notes
+    )
+    return {"id": prompt_id, "message": "Prompt saved to library"}
+
+
+@app.get("/api/library")
+async def list_library(search: str = "", category: str = ""):
+    return await get_prompts(search, category)
+
+
+@app.delete("/api/library/{prompt_id}")
+async def delete_from_library(prompt_id: int):
+    await delete_prompt(prompt_id)
     return {"message": "Deleted"}
 
 
-@app.post("/api/memory/synthesize")
-async def synthesize_prospect(req: SynthesisRequest):
-    history = await get_prospect_history(req.prospect_name, req.company)
+# ─── Notes ───────────────────────────────────────────────────────────────────
 
-    if not history:
-        raise HTTPException(status_code=404, detail="No history found for this prospect")
-
-    history_text = ""
-    for h in history:
-        history_text += f"""
-Date: {h['call_date']}
-Outcome: {h['outcome']}
-Notes: {h['notes']}
-Next Steps: {h['next_steps']}
----"""
-
-    prompt = f"""Synthesize all interactions with this prospect and give me the full picture.
-
-PROSPECT: {req.prospect_name} at {req.company}
-TOTAL TOUCHPOINTS: {len(history)}
-
-INTERACTION HISTORY:
-{history_text}
-
-Give me:
-
-## 📋 PROSPECT SUMMARY
-Who is this person? What do we know about their situation, interests, and decision-making style?
-
-## 🔑 KEY INSIGHTS
-Top 3 things we've learned about this prospect from our interactions.
-
-## 📈 RELATIONSHIP STATUS
-Where are we in the sales process? What's the momentum like?
-
-## 🎯 NEXT BEST ACTION
-Exactly what should I do next and what should I say? Give me the script.
-
-## ⚠️ WATCH OUTS
-Any red flags, stall patterns, or things to be careful about with this prospect?
-
-## 💡 PERSONALIZATION GOLD
-Best hooks and personalization angles based on everything we know."""
-
-    return StreamingResponse(
-        stream_claude(prompt),
-        media_type="text/event-stream",
-        headers={"Cache-Control": "no-cache", "X-Accel-Buffering": "no"}
-    )
+@app.post("/api/notes/save")
+async def save_learning_note(req: SaveNoteRequest):
+    note_id = await save_note(req.topic, req.content, req.category)
+    return {"id": note_id, "message": "Note saved"}
 
 
-# ── Personal Agent Blueprint ─────────────────────────────────────────────────
+@app.get("/api/notes")
+async def list_notes(category: str = ""):
+    return await get_notes(category)
+
+
+# ─── Challenge History ────────────────────────────────────────────────────────
+
+@app.get("/api/challenge/history")
+async def challenge_history(limit: int = 20):
+    return await get_challenge_history(limit)
+
+
+# ─── Personal Agent Blueprint ─────────────────────────────────────────────────
 
 @app.post("/api/personal-agent/blueprint")
 async def generate_personal_agent_blueprint(req: PersonalAgentBlueprintRequest):
@@ -604,57 +692,9 @@ Give me 5 concrete prompts/commands I can execute right now.
 Style: crisp, tactical, high agency. No fluff."""
 
     return StreamingResponse(
-        stream_claude(prompt, system=system),
+        stream_claude(prompt, system=system, max_tokens=4096),
         media_type="text/event-stream",
-        headers={"Cache-Control": "no-cache", "X-Accel-Buffering": "no"}
-    )
-
-
-# ── Dashboard / Daily Brief ────────────────────────────────────────────────────
-
-@app.post("/api/dashboard/brief")
-async def daily_brief(req: DailyBriefRequest):
-    stats = await get_stats()
-    recent_convs = await get_conversations()
-    recent_leads = await get_leads()
-
-    recent_context = ""
-    if recent_convs[:3]:
-        recent_context += "RECENT PROSPECTS:\n"
-        for c in recent_convs[:3]:
-            recent_context += f"- {c['prospect_name']} at {c['company']}: {c['outcome']}\n"
-
-    prompt = f"""Give me a killer daily SDR brief to start the day fired up and focused.
-
-TODAY'S GOALS: {req.goals}
-TOTAL LEADS IN SYSTEM: {stats['leads']}
-TOTAL CONVERSATIONS LOGGED: {stats['conversations']}
-EMAILS GENERATED: {stats['emails']}
-{recent_context}
-
-Give me:
-
-## ☀️ MORNING MINDSET
-One punchy sentence to get in the zone. Not generic motivation — make it SDR-specific and real.
-
-## 🎯 TODAY'S BATTLE PLAN
-Based on the goals, what's the hour-by-hour attack plan? Keep it tactical.
-
-## 💡 SDR TIP OF THE DAY
-One specific, immediately applicable technique for booking more meetings. Make it something most reps don't do.
-
-## 📞 POWER OPENER OF THE DAY
-Give me one cold call opener I can use today that actually sounds human and gets past the first 10 seconds.
-
-## 🧠 OBJECTION DRILL
-Pick one common objection and give me the 3-step reframe for it.
-
-Keep it energizing, tactical, and short. This is a morning brief, not a novel."""
-
-    return StreamingResponse(
-        stream_claude(prompt),
-        media_type="text/event-stream",
-        headers={"Cache-Control": "no-cache", "X-Accel-Buffering": "no"}
+        headers={"Cache-Control": "no-cache", "X-Accel-Buffering": "no"},
     )
 
 

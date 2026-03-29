@@ -1,157 +1,232 @@
-import { useState } from 'react'
-import { Zap, Target, TrendingUp, Coffee, RefreshCw } from 'lucide-react'
-import { streamPost } from '../api'
-import StreamingText from '../components/StreamingText'
+import { Brain, FlaskConical, BookOpen, Target, Hammer, Library, Zap, TrendingUp, Star, ChevronRight, Award } from 'lucide-react'
+import type { Progress } from '../App'
+import type { Page } from '../components/Sidebar'
 
 interface DashboardProps {
-  stats: { leads: number; conversations: number; emails: number; style_samples: number }
+  progress: Progress
+  onNavigate: (page: Page) => void
 }
 
-export default function Dashboard({ stats }: DashboardProps) {
-  const [goals, setGoals] = useState('10 dials, 3 meetings booked')
-  const [brief, setBrief] = useState('')
-  const [isStreaming, setIsStreaming] = useState(false)
+const TECHNIQUES = [
+  { name: 'Chain of Thought', tag: 'CoT', desc: 'Elicit step-by-step reasoning by asking the model to think through a problem before answering.', difficulty: 'Beginner', color: 'violet' },
+  { name: 'Few-Shot Learning', tag: 'FSL', desc: 'Provide 2–5 input/output examples to demonstrate the exact behavior you want.', difficulty: 'Beginner', color: 'cyan' },
+  { name: 'System Prompt Design', tag: 'SYS', desc: 'Architect the system prompt to set persona, constraints, and output conventions.', difficulty: 'Intermediate', color: 'amber' },
+  { name: 'Tree of Thought', tag: 'ToT', desc: 'Have the model explore multiple reasoning paths and evaluate/select the best one.', difficulty: 'Advanced', color: 'emerald' },
+  { name: 'Self-Consistency', tag: 'SC', desc: 'Sample multiple reasoning chains and pick the most common answer for higher accuracy.', difficulty: 'Intermediate', color: 'rose' },
+  { name: 'ReAct', tag: 'ReAct', desc: 'Interleave reasoning (Thought) and action (Act) steps for agentic tasks with tool use.', difficulty: 'Advanced', color: 'orange' },
+  { name: 'Structured Output', tag: 'JSON', desc: 'Constrain model output to JSON, XML, or custom formats for programmatic use.', difficulty: 'Beginner', color: 'teal' },
+  { name: 'Meta-Prompting', tag: 'META', desc: 'Use the model to generate or improve prompts — prompt the prompter.', difficulty: 'Expert', color: 'purple' },
+]
 
-  const generateBrief = async () => {
-    setBrief('')
-    setIsStreaming(true)
-    try {
-      for await (const chunk of streamPost('/dashboard/brief', { goals })) {
-        setBrief(prev => prev + chunk)
-      }
-    } catch (e) {
-      setBrief('Error generating brief. Check your API key.')
-    } finally {
-      setIsStreaming(false)
-    }
+const QUICK_ACTIONS = [
+  { page: 'prompt-lab' as Page, icon: FlaskConical, label: 'Evaluate a Prompt', desc: 'Get expert-level analysis of your prompt', color: 'from-violet-600 to-purple-700' },
+  { page: 'challenges' as Page, icon: Target, label: 'Take a Challenge', desc: 'Test your skills, earn XP', color: 'from-cyan-600 to-blue-700' },
+  { page: 'knowledge' as Page, icon: BookOpen, label: 'Learn a Concept', desc: 'Deep-dive into AI/ML topics', color: 'from-emerald-600 to-teal-700' },
+  { page: 'skill-builder' as Page, icon: Hammer, label: 'Build a Skill', desc: 'Get a personalized learning roadmap', color: 'from-amber-600 to-orange-700' },
+]
+
+const LEVEL_TITLES = ['Novice', 'Apprentice', 'Practitioner', 'Specialist', 'Expert', 'Master', 'Grandmaster', 'Legend']
+const LEVEL_THRESHOLDS = [0, 100, 300, 600, 1000, 2000, 4000, 8000]
+
+function getLevel(xp: number) {
+  let idx = 0
+  for (let i = 0; i < LEVEL_THRESHOLDS.length; i++) {
+    if (xp >= LEVEL_THRESHOLDS[i]) idx = i
   }
+  const nextXP = idx < LEVEL_THRESHOLDS.length - 1 ? LEVEL_THRESHOLDS[idx + 1] : LEVEL_THRESHOLDS[idx] + 10000
+  const prevXP = LEVEL_THRESHOLDS[idx]
+  const pct = Math.min(100, Math.round(((xp - prevXP) / (nextXP - prevXP)) * 100))
+  return { level: idx + 1, title: LEVEL_TITLES[idx], nextXP, pct }
+}
 
-  const today = new Date().toLocaleDateString('en-US', {
-    weekday: 'long', month: 'long', day: 'numeric'
-  })
+const tagColorMap: Record<string, string> = {
+  violet: 'bg-violet-500/20 text-violet-300 border-violet-500/30',
+  cyan: 'bg-cyan-500/20 text-cyan-300 border-cyan-500/30',
+  amber: 'bg-amber-500/20 text-amber-300 border-amber-500/30',
+  emerald: 'bg-emerald-500/20 text-emerald-300 border-emerald-500/30',
+  rose: 'bg-rose-500/20 text-rose-300 border-rose-500/30',
+  orange: 'bg-orange-500/20 text-orange-300 border-orange-500/30',
+  teal: 'bg-teal-500/20 text-teal-300 border-teal-500/30',
+  purple: 'bg-purple-500/20 text-purple-300 border-purple-500/30',
+}
+
+const difficultyColor: Record<string, string> = {
+  Beginner: 'text-emerald-400',
+  Intermediate: 'text-amber-400',
+  Advanced: 'text-orange-400',
+  Expert: 'text-rose-400',
+}
+
+export default function Dashboard({ progress, onNavigate }: DashboardProps) {
+  const { level, title, nextXP, pct } = getLevel(progress.total_xp)
+
+  const hour = new Date().getHours()
+  const greeting = hour < 12 ? 'Good morning' : hour < 17 ? 'Good afternoon' : 'Good evening'
 
   return (
-    <div className="page-transition space-y-6">
-      {/* Hero */}
-      <div className="bg-gradient-to-br from-slate-900 via-slate-800 to-slate-900 rounded-2xl p-6 text-white relative overflow-hidden">
-        <div className="absolute inset-0 opacity-5">
-          <div className="absolute top-4 right-4 w-40 h-40 bg-amber-400 rounded-full blur-3xl" />
-          <div className="absolute bottom-4 left-4 w-32 h-32 bg-amber-600 rounded-full blur-3xl" />
-        </div>
-        <div className="relative">
-          <p className="text-slate-400 text-sm">{today}</p>
-          <h1 className="text-2xl font-bold mt-1">
-            Ready to <span className="text-amber-400">crush it?</span>
-          </h1>
-          <p className="text-slate-400 text-sm mt-1">
-            Artemis Distribution · SDR Command Center
-          </p>
+    <div className="p-4 md:p-6 max-w-6xl mx-auto space-y-4 md:space-y-6">
+      {/* Hero header */}
+      <div className="bg-gradient-to-br from-gray-900 to-gray-900/50 border border-gray-800 rounded-2xl p-4 md:p-6">
+        <div className="flex items-start justify-between gap-4">
+          <div className="min-w-0">
+            <p className="text-gray-400 text-sm mb-1">{greeting} — let's get smarter</p>
+            <h1 className="text-xl md:text-2xl font-bold text-white mb-2">AI Mastery Hub</h1>
+            <p className="text-gray-400 text-sm max-w-lg hidden sm:block">
+              Your personal prompt engineering training ground. Learn techniques used by researchers at Anthropic, OpenAI, and Google — then practice until you're better than them.
+            </p>
+            <p className="text-gray-400 text-xs sm:hidden">
+              Your prompt engineering training ground.
+            </p>
+          </div>
+          <div className="flex-shrink-0">
+            <div className="bg-gray-800 border border-gray-700 rounded-xl p-3 md:p-4 text-center min-w-[100px] md:min-w-[120px]">
+              <div className="text-2xl md:text-3xl font-black text-white mb-1">Lv.{level}</div>
+              <div className="text-violet-400 text-xs md:text-sm font-semibold mb-2">{title}</div>
+              <div className="w-full bg-gray-700 rounded-full h-1.5">
+                <div
+                  className="h-1.5 rounded-full bg-gradient-to-r from-violet-500 to-purple-400"
+                  style={{ width: `${pct}%` }}
+                />
+              </div>
+              <p className="text-gray-500 text-xs mt-1">{progress.total_xp} / {nextXP} XP</p>
+            </div>
+          </div>
         </div>
       </div>
 
-      {/* Stats */}
-      <div className="grid grid-cols-4 gap-4">
-        <StatCard icon={<Target size={20} />} label="Leads Saved" value={stats.leads} color="blue" />
-        <StatCard icon={<Coffee size={20} />} label="Convos Logged" value={stats.conversations} color="purple" />
-        <StatCard icon={<Zap size={20} />} label="Emails Written" value={stats.emails} color="amber" />
-        <StatCard icon={<TrendingUp size={20} />} label="Style Samples" value={stats.style_samples} color="green" />
+      {/* Stats row */}
+      <div className="grid grid-cols-2 md:grid-cols-4 gap-3 md:gap-4">
+        {[
+          { label: 'Total XP', value: progress.total_xp, icon: Zap, color: 'text-violet-400', bg: 'bg-violet-500/10 border-violet-500/20' },
+          { label: 'Prompts Evaluated', value: progress.prompts_evaluated, icon: FlaskConical, color: 'text-cyan-400', bg: 'bg-cyan-500/10 border-cyan-500/20' },
+          { label: 'Challenges Won', value: progress.challenges_completed, icon: Target, color: 'text-emerald-400', bg: 'bg-emerald-500/10 border-emerald-500/20' },
+          { label: 'Day Streak', value: progress.current_streak, icon: TrendingUp, color: 'text-amber-400', bg: 'bg-amber-500/10 border-amber-500/20' },
+        ].map(({ label, value, icon: Icon, color, bg }) => (
+          <div key={label} className={`${bg} border rounded-xl p-4`}>
+            <div className="flex items-center gap-2 mb-3">
+              <Icon className={`w-4 h-4 ${color}`} />
+              <span className="text-gray-400 text-xs">{label}</span>
+            </div>
+            <p className={`text-2xl font-black ${color}`}>{value}</p>
+          </div>
+        ))}
       </div>
 
-      {/* Daily Brief */}
-      <div className="bg-white rounded-2xl border border-slate-200 overflow-hidden">
-        <div className="px-6 py-4 border-b border-slate-100 flex items-center justify-between">
-          <div>
-            <h2 className="font-bold text-slate-900">Daily Brief</h2>
-            <p className="text-slate-500 text-sm">Your AI-powered morning game plan</p>
+      {/* Quick actions */}
+      <div>
+        <div className="flex items-center gap-2 mb-3 md:mb-4">
+          <Star className="w-4 h-4 text-amber-400" />
+          <h2 className="text-white font-bold">Quick Start</h2>
+        </div>
+        <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
+          {QUICK_ACTIONS.map(({ page, icon: Icon, label, desc, color }) => (
+            <button
+              key={page}
+              onClick={() => onNavigate(page)}
+              className="bg-gray-900 border border-gray-800 hover:border-gray-700 rounded-xl p-4 text-left transition-all group hover:shadow-lg"
+            >
+              <div className="flex items-start gap-3">
+                <div className={`w-10 h-10 rounded-lg bg-gradient-to-br ${color} flex items-center justify-center flex-shrink-0`}>
+                  <Icon className="w-5 h-5 text-white" />
+                </div>
+                <div className="flex-1 min-w-0">
+                  <div className="flex items-center justify-between">
+                    <p className="text-white font-semibold text-sm">{label}</p>
+                    <ChevronRight className="w-4 h-4 text-gray-600 group-hover:text-gray-400 transition-colors" />
+                  </div>
+                  <p className="text-gray-500 text-xs mt-0.5">{desc}</p>
+                </div>
+              </div>
+            </button>
+          ))}
+        </div>
+      </div>
+
+      {/* Techniques reference */}
+      <div>
+        <div className="flex items-center justify-between mb-3 md:mb-4">
+          <div className="flex items-center gap-2">
+            <Brain className="w-4 h-4 text-violet-400" />
+            <h2 className="text-white font-bold">Core Techniques</h2>
           </div>
           <button
-            onClick={generateBrief}
-            disabled={isStreaming}
-            className="flex items-center gap-2 bg-amber-500 hover:bg-amber-600 disabled:opacity-50 text-white px-4 py-2 rounded-lg text-sm font-semibold transition-colors"
+            onClick={() => onNavigate('prompt-lab')}
+            className="text-violet-400 text-xs hover:text-violet-300 transition-colors flex items-center gap-1"
           >
-            <RefreshCw size={15} className={isStreaming ? 'animate-spin' : ''} />
-            {isStreaming ? 'Generating...' : brief ? 'Regenerate' : 'Generate Brief'}
+            Practice in Lab <ChevronRight className="w-3 h-3" />
           </button>
         </div>
-
-        {/* Goals input */}
-        <div className="px-6 py-4 border-b border-slate-100 bg-slate-50">
-          <label className="block text-xs font-semibold text-slate-500 uppercase tracking-wider mb-2">
-            Today's Goals
-          </label>
-          <input
-            value={goals}
-            onChange={e => setGoals(e.target.value)}
-            placeholder="e.g. 10 dials, 3 meetings booked"
-            className="w-full border border-slate-200 rounded-lg px-3 py-2 text-sm focus:border-amber-400 focus:ring-2 focus:ring-amber-100 transition-colors"
-          />
-        </div>
-
-        {/* Brief output */}
-        <div className="p-6">
-          {brief ? (
-            <StreamingText text={brief} isStreaming={isStreaming} />
-          ) : (
-            <div className="text-center py-10">
-              <div className="w-16 h-16 bg-amber-50 rounded-2xl flex items-center justify-center mx-auto mb-4">
-                <Zap size={28} className="text-amber-500" />
+        <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
+          {TECHNIQUES.map((t) => (
+            <div
+              key={t.name}
+              className="bg-gray-900 border border-gray-800 rounded-xl p-4 hover:border-gray-700 transition-all"
+            >
+              <div className="flex items-center gap-2 mb-2">
+                <span className={`text-xs font-bold px-2 py-0.5 rounded-md border ${tagColorMap[t.color]}`}>
+                  {t.tag}
+                </span>
+                <span className={`text-xs ${difficultyColor[t.difficulty]}`}>{t.difficulty}</span>
               </div>
-              <p className="text-slate-700 font-semibold">Start your day right</p>
-              <p className="text-slate-400 text-sm mt-1">
-                Hit "Generate Brief" to get your AI-powered daily game plan
-              </p>
+              <p className="text-white font-semibold text-sm mb-1">{t.name}</p>
+              <p className="text-gray-500 text-xs leading-relaxed">{t.desc}</p>
             </div>
-          )}
+          ))}
         </div>
       </div>
 
-      {/* Quick tips */}
-      <div className="grid grid-cols-3 gap-4">
-        <TipCard
-          title="The 10/2/1 Rule"
-          body="For every 10 dials: 2 conversations, 1 qualified meeting. Track it daily to spot gaps."
-        />
-        <TipCard
-          title="Power Hour"
-          body="Best call times: 8-9am and 4-5pm. Decision makers pick up 40% more during these windows."
-        />
-        <TipCard
-          title="The 5-Touch Rule"
-          body="80% of meetings are booked after the 5th touch. Most reps quit after 2. Don't be most reps."
-        />
+      {/* Mastery path */}
+      <div className="bg-gray-900 border border-gray-800 rounded-2xl p-5">
+        <div className="flex items-center gap-2 mb-4">
+          <Award className="w-4 h-4 text-amber-400" />
+          <h2 className="text-white font-bold">Your Mastery Path</h2>
+        </div>
+        <div className="flex items-center gap-2 overflow-x-auto pb-2">
+          {LEVEL_TITLES.map((lvlTitle, i) => {
+            const isCompleted = level > i + 1
+            const isCurrent = level === i + 1
+            return (
+              <div key={lvlTitle} className="flex items-center gap-2 flex-shrink-0">
+                <div className={`flex flex-col items-center gap-1 ${isCompleted || isCurrent ? 'opacity-100' : 'opacity-40'}`}>
+                  <div className={`w-8 h-8 rounded-full flex items-center justify-center text-xs font-bold border-2 ${
+                    isCompleted ? 'bg-violet-600 border-violet-500 text-white' :
+                    isCurrent ? 'bg-gray-800 border-violet-500 text-violet-400' :
+                    'bg-gray-800 border-gray-700 text-gray-500'
+                  }`}>
+                    {isCompleted ? '✓' : i + 1}
+                  </div>
+                  <span className={`text-xs ${isCurrent ? 'text-violet-400 font-semibold' : 'text-gray-500'}`}>
+                    {lvlTitle}
+                  </span>
+                </div>
+                {i < LEVEL_TITLES.length - 1 && (
+                  <div className={`w-8 h-0.5 flex-shrink-0 ${isCompleted ? 'bg-violet-600' : 'bg-gray-700'}`} />
+                )}
+              </div>
+            )
+          })}
+        </div>
       </div>
-    </div>
-  )
-}
 
-function StatCard({ icon, label, value, color }: {
-  icon: React.ReactNode; label: string; value: number; color: string
-}) {
-  const colorMap: Record<string, string> = {
-    blue: 'bg-blue-50 text-blue-600',
-    purple: 'bg-purple-50 text-purple-600',
-    amber: 'bg-amber-50 text-amber-600',
-    green: 'bg-green-50 text-green-600',
-  }
-  return (
-    <div className="bg-white rounded-xl border border-slate-200 p-4">
-      <div className={`w-9 h-9 rounded-lg flex items-center justify-center mb-3 ${colorMap[color]}`}>
-        {icon}
+      {/* Navigation shortcuts */}
+      <div className="grid grid-cols-1 sm:grid-cols-3 gap-3">
+        {[
+          { page: 'knowledge' as Page, icon: BookOpen, label: 'Knowledge Hub', desc: 'Ask any AI/ML question', xp: '+5 XP' },
+          { page: 'challenges' as Page, icon: Target, label: 'Daily Challenge', desc: 'Sharpen your prompting', xp: '+25 XP' },
+          { page: 'library' as Page, icon: Library, label: 'Prompt Library', desc: 'Browse & save prompts', xp: 'Free' },
+        ].map(({ page, icon: Icon, label, desc, xp }) => (
+          <button
+            key={page}
+            onClick={() => onNavigate(page)}
+            className="bg-gray-900 border border-gray-800 hover:border-gray-700 rounded-xl p-4 text-left transition-all group"
+          >
+            <Icon className="w-5 h-5 text-gray-400 group-hover:text-white transition-colors mb-3" />
+            <p className="text-white text-sm font-semibold">{label}</p>
+            <p className="text-gray-500 text-xs mb-2">{desc}</p>
+            <span className="text-xs font-medium text-violet-400 bg-violet-500/10 px-2 py-0.5 rounded-full">{xp}</span>
+          </button>
+        ))}
       </div>
-      <p className="text-2xl font-bold text-slate-900">{value}</p>
-      <p className="text-slate-500 text-sm mt-0.5">{label}</p>
-    </div>
-  )
-}
-
-function TipCard({ title, body }: { title: string; body: string }) {
-  return (
-    <div className="bg-white rounded-xl border border-slate-200 p-4">
-      <div className="flex items-center gap-2 mb-2">
-        <div className="w-1.5 h-1.5 bg-amber-500 rounded-full" />
-        <p className="font-semibold text-slate-900 text-sm">{title}</p>
-      </div>
-      <p className="text-slate-500 text-sm leading-relaxed">{body}</p>
     </div>
   )
 }

@@ -1,5 +1,5 @@
 import { useCallback, useEffect, useRef, useState } from 'react'
-import { Bot, Loader2, Sparkles } from 'lucide-react'
+import { Bot, Loader2, Sparkles, X } from 'lucide-react'
 import { streamPost } from '../api'
 import StreamingText from '../components/StreamingText'
 
@@ -31,135 +31,144 @@ export default function PersonalAgent() {
     setIsStreaming(true)
 
     try {
-      for await (const chunk of streamPost('/personal-agent/blueprint', {
-        full_name: fullName.trim(),
-        role: role.trim(),
-        top_goals: topGoals.trim(),
-        tools: tools.trim(),
-        research_domains: researchDomains.trim(),
-        shopping_preferences: shoppingPreferences.trim(),
-        coding_stack: codingStack.trim(),
-        privacy_boundaries: privacyBoundaries.trim(),
-      }, controller.signal)) {
+      for await (const chunk of streamPost(
+        '/personal-agent/blueprint',
+        {
+          full_name: fullName.trim(),
+          role: role.trim(),
+          top_goals: topGoals.trim(),
+          tools: tools.trim(),
+          research_domains: researchDomains.trim(),
+          shopping_preferences: shoppingPreferences.trim(),
+          coding_stack: codingStack.trim(),
+          privacy_boundaries: privacyBoundaries.trim(),
+        },
+        controller.signal,
+      )) {
         setOutput(prev => prev + chunk)
       }
-    } catch (e: any) {
-      if (e.name !== 'AbortError') {
+    } catch (e: unknown) {
+      if (e instanceof Error && e.name !== 'AbortError') {
         setOutput(`Error: ${e.message}`)
       }
     } finally {
       setIsStreaming(false)
-      if (abortRef.current === controller) {
-        abortRef.current = null
-      }
+      if (abortRef.current === controller) abortRef.current = null
     }
-  }, [
-    codingStack,
-    fullName,
-    privacyBoundaries,
-    researchDomains,
-    role,
-    shoppingPreferences,
-    tools,
-    topGoals,
-  ])
+  }, [codingStack, fullName, privacyBoundaries, researchDomains, role, shoppingPreferences, tools, topGoals])
 
-  const handleCancel = () => {
-    abortRef.current?.abort()
-  }
+  const handleCancel = () => abortRef.current?.abort()
 
   return (
-    <div className="page-transition grid grid-cols-5 gap-6 h-full">
-      <div className="col-span-2 space-y-4">
-        <div className="bg-white rounded-2xl border border-slate-200 p-5 space-y-3">
-          <h2 className="font-bold text-slate-900 mb-1 flex items-center gap-2">
-            <Bot size={18} className="text-amber-500" />
-            Personal Agent Builder
-          </h2>
-          <p className="text-xs text-slate-500">
-            Build your ChatGPT-powered personal operating system for research, shopping, and better coding prompts.
+    <div className="flex flex-col md:flex-row md:h-full">
+      {/* Left panel: form */}
+      <div className="flex flex-col border-b border-gray-800 md:border-b-0 md:border-r md:w-80 md:flex-shrink-0">
+        <div className="p-4 border-b border-gray-800">
+          <div className="flex items-center gap-2 mb-1">
+            <Bot className="w-5 h-5 text-amber-400" />
+            <h1 className="text-white font-bold text-lg">Personal Agent</h1>
+          </div>
+          <p className="text-gray-500 text-xs">
+            Build your ChatGPT-powered personal AI operating system — research, shopping, coding prompts, and a 30-day rollout plan.
           </p>
+        </div>
 
-          <FormField label="Full Name *" value={fullName} onChange={setFullName} placeholder="e.g. Alex Carter" />
-          <FormField label="Role" value={role} onChange={setRole} placeholder="e.g. Founder / Engineer" />
+        <div className="p-4 space-y-3 md:flex-1 md:overflow-y-auto">
+          <Field label="Full Name *" value={fullName} onChange={setFullName} placeholder="e.g. Alex Carter" />
+          <Field label="Role" value={role} onChange={setRole} placeholder="e.g. Founder / Engineer" />
 
           <div>
-            <label className="block text-xs font-semibold text-slate-500 uppercase tracking-wider mb-1.5">Top Goals *</label>
+            <label className="text-xs text-gray-400 font-medium mb-1.5 block">
+              Top Goals * <span className="text-gray-600">(90-day outcomes)</span>
+            </label>
             <textarea
               value={topGoals}
               onChange={e => setTopGoals(e.target.value)}
               rows={3}
               placeholder="What outcomes do you want this agent to drive over the next 90 days?"
-              className="w-full border border-slate-200 rounded-lg px-3 py-2 text-sm focus:border-amber-400 focus:ring-2 focus:ring-amber-100 transition-colors"
+              className="w-full bg-gray-800 border border-gray-700 text-gray-100 rounded-lg px-3 py-2.5 text-sm resize-none focus:outline-none focus:border-amber-500 transition-colors placeholder-gray-600"
             />
           </div>
 
-          <FormField label="Tools" value={tools} onChange={setTools} placeholder="ChatGPT, Cursor, Notion, Gmail..." />
-          <FormField label="Research Domains" value={researchDomains} onChange={setResearchDomains} placeholder="e.g. AI tools, biotech, market trends" />
-          <FormField label="Shopping Preferences" value={shoppingPreferences} onChange={setShoppingPreferences} placeholder="e.g. premium quality, low total cost" />
-          <FormField label="Coding Stack" value={codingStack} onChange={setCodingStack} placeholder="e.g. TS/React/FastAPI, Rust" />
+          <Field label="Tools" value={tools} onChange={setTools} placeholder="ChatGPT, Cursor, Notion, Gmail..." />
+          <Field label="Research Domains" value={researchDomains} onChange={setResearchDomains} placeholder="e.g. AI tools, biotech, market trends" />
+          <Field label="Shopping Preferences" value={shoppingPreferences} onChange={setShoppingPreferences} placeholder="e.g. premium quality, low total cost" />
+          <Field label="Coding Stack" value={codingStack} onChange={setCodingStack} placeholder="e.g. TS/React/FastAPI, Rust" />
 
           <div>
-            <label className="block text-xs font-semibold text-slate-500 uppercase tracking-wider mb-1.5">Privacy Boundaries</label>
+            <label className="text-xs text-gray-400 font-medium mb-1.5 block">Privacy Boundaries</label>
             <textarea
               value={privacyBoundaries}
               onChange={e => setPrivacyBoundaries(e.target.value)}
               rows={2}
               placeholder="What should never be stored/shared? Any compliance constraints?"
-              className="w-full border border-slate-200 rounded-lg px-3 py-2 text-sm focus:border-amber-400 focus:ring-2 focus:ring-amber-100 transition-colors"
+              className="w-full bg-gray-800 border border-gray-700 text-gray-100 rounded-lg px-3 py-2.5 text-sm resize-none focus:outline-none focus:border-amber-500 transition-colors placeholder-gray-600"
             />
           </div>
+        </div>
 
+        <div className="p-4 border-t border-gray-800 space-y-2">
           <button
             onClick={handleGenerate}
             disabled={!fullName.trim() || !topGoals.trim() || isStreaming}
-            className="w-full bg-amber-500 hover:bg-amber-600 disabled:opacity-50 text-white py-2.5 rounded-lg font-semibold text-sm transition-colors flex items-center justify-center gap-2"
+            className="w-full bg-amber-600 hover:bg-amber-500 disabled:opacity-40 disabled:cursor-not-allowed text-white font-semibold rounded-lg py-3 text-sm flex items-center justify-center gap-2 transition-colors"
           >
-            {isStreaming ? <><Loader2 size={15} className="animate-spin" /> Building...</> : <><Sparkles size={15} /> Build My Agent System</>}
+            {isStreaming
+              ? <><Loader2 className="w-4 h-4 animate-spin" /> Building Agent System...</>
+              : <><Sparkles className="w-4 h-4" /> Build My Agent System</>}
           </button>
-
           {isStreaming && (
             <button
               onClick={handleCancel}
-              className="w-full bg-white border border-slate-200 hover:bg-slate-50 text-slate-700 py-2.5 rounded-lg font-semibold text-sm transition-colors"
+              className="w-full bg-gray-800 hover:bg-gray-700 text-gray-300 rounded-lg py-2.5 text-sm flex items-center justify-center gap-2 transition-colors"
             >
-              Stop Generation
+              <X className="w-4 h-4" /> Stop Generation
             </button>
           )}
         </div>
       </div>
 
-      <div className="col-span-3">
-        <div className="bg-white rounded-2xl border border-slate-200 h-full flex flex-col overflow-hidden">
-          <div className="px-5 py-4 border-b border-slate-100">
-            <h3 className="font-bold text-slate-900">Personal Agent Blueprint</h3>
-            <p className="text-slate-500 text-sm">Includes setup pack, operating model, coding prompt engine, and 30-day rollout plan.</p>
-          </div>
+      {/* Right panel: output */}
+      <div className="flex-1 flex flex-col min-h-0">
+        <div className="p-4 border-b border-gray-800 flex items-center gap-2 flex-wrap">
+          <Sparkles className="w-4 h-4 text-amber-400 flex-shrink-0" />
+          <span className="text-gray-300 text-sm font-medium">Personal Agent Blueprint</span>
+          <span className="text-gray-500 text-xs hidden sm:inline">— Setup pack, prompts &amp; 30-day plan</span>
+          {isStreaming && (
+            <span className="ml-auto text-xs text-amber-400 bg-amber-500/10 px-2 py-0.5 rounded-full animate-pulse">
+              Building...
+            </span>
+          )}
+        </div>
 
-          <div className="flex-1 overflow-y-auto p-5">
-            {output ? (
-              <StreamingText text={output} isStreaming={isStreaming} />
-            ) : (
-              <div className="h-full flex items-center justify-center text-center">
-                <div>
-                  <div className="w-20 h-20 bg-amber-50 rounded-2xl flex items-center justify-center mx-auto mb-4">
-                    <Bot size={32} className="text-amber-400" />
-                  </div>
-                  <p className="text-slate-700 font-semibold">Design your personal AI operating system</p>
-                  <p className="text-slate-400 text-sm mt-1 max-w-md">
-                    You&apos;ll get copy/paste prompts for research, shopping, and coding workflows plus realistic constraints for cross-app memory.
-                  </p>
+        <div className="flex-1 overflow-y-auto p-4 md:p-6 min-h-96 md:min-h-0">
+          {output ? (
+            <StreamingText text={output} isStreaming={isStreaming} />
+          ) : (
+            <div className="flex items-center justify-center text-center py-16">
+              <div>
+                <div className="w-16 h-16 bg-amber-500/10 border border-amber-500/20 rounded-2xl flex items-center justify-center mx-auto mb-4">
+                  <Bot className="w-8 h-8 text-amber-400" />
                 </div>
+                <p className="text-white font-semibold mb-1">Design your personal AI operating system</p>
+                <p className="text-gray-500 text-sm max-w-sm">
+                  You'll get copy/paste prompts for research, shopping, and coding workflows — plus a realistic 30-day rollout plan.
+                </p>
               </div>
-            )}
-          </div>
+            </div>
+          )}
         </div>
       </div>
     </div>
   )
 }
 
-function FormField({ label, value, onChange, placeholder }: {
+function Field({
+  label,
+  value,
+  onChange,
+  placeholder,
+}: {
   label: string
   value: string
   onChange: (v: string) => void
@@ -167,14 +176,12 @@ function FormField({ label, value, onChange, placeholder }: {
 }) {
   return (
     <div>
-      <label className="block text-xs font-semibold text-slate-500 uppercase tracking-wider mb-1.5">
-        {label}
-      </label>
+      <label className="text-xs text-gray-400 font-medium mb-1.5 block">{label}</label>
       <input
         value={value}
         onChange={e => onChange(e.target.value)}
         placeholder={placeholder}
-        className="w-full border border-slate-200 rounded-lg px-3 py-2 text-sm focus:border-amber-400 focus:ring-2 focus:ring-amber-100 transition-colors"
+        className="w-full bg-gray-800 border border-gray-700 text-gray-100 rounded-lg px-3 py-2.5 text-sm focus:outline-none focus:border-amber-500 transition-colors placeholder-gray-600"
       />
     </div>
   )
