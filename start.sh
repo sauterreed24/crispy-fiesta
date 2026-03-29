@@ -11,12 +11,24 @@ echo "  ⚡ Artemis SDR Assistant"
 echo "=========================================="
 echo ""
 
-# Check API key
-if [ -z "$ANTHROPIC_API_KEY" ]; then
-  echo "⚠️  ANTHROPIC_API_KEY not set."
-  echo "   Set it with: export ANTHROPIC_API_KEY=sk-ant-..."
-  echo ""
+# Load .env if present
+if [ -f "$SCRIPT_DIR/.env" ]; then
+  set -a
+  # shellcheck disable=SC1091
+  source "$SCRIPT_DIR/.env"
+  set +a
 fi
+
+# Check API key
+if [ -z "$ANTHROPIC_API_KEY" ] || [ "$ANTHROPIC_API_KEY" = "your-api-key-here" ]; then
+  echo "❌  ANTHROPIC_API_KEY is not configured."
+  echo "   Edit .env in the project root and set your key:"
+  echo "   ANTHROPIC_API_KEY=sk-ant-..."
+  echo ""
+  exit 1
+fi
+echo "✅  API key loaded."
+echo ""
 
 # Kill any existing instances
 pkill -f "uvicorn main:app" 2>/dev/null || true

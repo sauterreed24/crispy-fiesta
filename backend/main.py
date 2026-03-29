@@ -1,18 +1,24 @@
 import os
 import json
 import asyncio
+from pathlib import Path
 from typing import AsyncIterator
 from fastapi import FastAPI, HTTPException
 from fastapi.responses import StreamingResponse
 from fastapi.middleware.cors import CORSMiddleware
 from pydantic import BaseModel, Field
 import anthropic
+from dotenv import load_dotenv
+
+# Load .env from project root (one level up from backend/)
+load_dotenv(dotenv_path=Path(__file__).parent.parent / ".env")
+
 from database import (
     init_db, save_lead, get_leads, delete_lead,
     save_conversation, get_conversations, get_prospect_history, delete_conversation,
     save_email, get_emails,
     save_style_sample, get_style_samples, delete_style_sample,
-    save_knowledge_note, get_knowledge_notes,
+    save_knowledge_note, get_knowledge_notes, delete_knowledge_note,
     get_stats
 )
 
@@ -445,6 +451,12 @@ async def add_knowledge_note(req: KnowledgeNoteRequest):
 @app.get("/api/knowledge/notes")
 async def list_knowledge_notes(category: str = ""):
     return await get_knowledge_notes(category)
+
+
+@app.delete("/api/knowledge/notes/{note_id}")
+async def remove_knowledge_note(note_id: int):
+    await delete_knowledge_note(note_id)
+    return {"message": "Deleted"}
 
 
 # ── Memory / CRM ──────────────────────────────────────────────────────────────

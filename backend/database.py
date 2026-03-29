@@ -213,6 +213,12 @@ async def delete_style_sample(sample_id: int):
         await db.commit()
 
 
+async def delete_knowledge_note(note_id: int):
+    async with aiosqlite.connect(DB_PATH) as db:
+        await db.execute("DELETE FROM knowledge_notes WHERE id = ?", (note_id,))
+        await db.commit()
+
+
 async def get_stats() -> dict:
     async with aiosqlite.connect(DB_PATH) as db:
         leads_count = (await (await db.execute("SELECT COUNT(*) FROM leads")).fetchone())[0]
