@@ -1,11 +1,12 @@
 import { useState, useEffect, useCallback } from 'react'
-import Sidebar, { Page } from './components/Sidebar'
+import Sidebar, { MobileNav, Page } from './components/Sidebar'
 import Dashboard from './pages/Dashboard'
 import PromptLab from './pages/PromptLab'
 import KnowledgeHub from './pages/KnowledgeHub'
 import Challenges from './pages/Challenges'
 import SkillBuilder from './pages/SkillBuilder'
 import PromptLibrary from './pages/PromptLibrary'
+import PersonalAgent from './pages/PersonalAgent'
 import { get } from './api'
 
 export interface Progress {
@@ -55,15 +56,24 @@ export default function App() {
         return <SkillBuilder />
       case 'library':
         return <PromptLibrary />
+      case 'personal-agent':
+        return <PersonalAgent />
     }
   }
 
   return (
-    <div className="flex h-screen bg-gray-950 text-gray-100 overflow-hidden">
-      <Sidebar currentPage={page} onNavigate={setPage} progress={progress} />
-      <main className="flex-1 overflow-y-auto">
-        {renderPage()}
-      </main>
+    <div className="flex flex-col h-screen bg-gray-950 text-gray-100 overflow-hidden">
+      {/* Desktop + mobile content row */}
+      <div className="flex flex-1 min-h-0 overflow-hidden">
+        {/* Sidebar: visible on md+ only */}
+        <Sidebar currentPage={page} onNavigate={setPage} progress={progress} />
+        {/* Main content */}
+        <main className="flex-1 overflow-y-auto">
+          {renderPage()}
+        </main>
+      </div>
+      {/* Mobile bottom nav: visible on small screens only */}
+      <MobileNav currentPage={page} onNavigate={setPage} />
     </div>
   )
 }

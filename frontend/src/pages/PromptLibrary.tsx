@@ -348,10 +348,10 @@ export default function PromptLibrary() {
   const displayPrompts = activeTab === 'saved' ? savedPrompts : filteredTemplates as unknown as SavedPrompt[]
 
   return (
-    <div className="flex h-full">
+    <div className="flex flex-col md:flex-row md:h-full">
       {/* Left panel: controls */}
-      <div className="w-[280px] flex-shrink-0 border-r border-gray-800 flex flex-col">
-        <div className="p-5 border-b border-gray-800">
+      <div className="flex flex-col border-b border-gray-800 md:border-b-0 md:border-r md:w-[280px] md:flex-shrink-0">
+        <div className="p-4 md:p-5 border-b border-gray-800">
           <div className="flex items-center gap-2 mb-1">
             <Library className="w-5 h-5 text-teal-400" />
             <h1 className="text-white font-bold text-lg">Prompt Library</h1>
@@ -392,7 +392,7 @@ export default function PromptLibrary() {
               value={search}
               onChange={e => setSearch(e.target.value)}
               placeholder="Search prompts..."
-              className="w-full bg-gray-800 border border-gray-700 text-gray-100 rounded-lg pl-8 pr-3 py-2 text-sm focus:outline-none focus:border-teal-500 placeholder-gray-600"
+              className="w-full bg-gray-800 border border-gray-700 text-gray-100 rounded-lg pl-8 pr-3 py-2.5 text-sm focus:outline-none focus:border-teal-500 placeholder-gray-600"
             />
           </div>
 
@@ -402,7 +402,7 @@ export default function PromptLibrary() {
               <button
                 key={cat}
                 onClick={() => setCategoryFilter(cat)}
-                className={`text-xs px-2 py-1 rounded-md border transition-all ${
+                className={`text-xs px-2 py-1.5 rounded-md border transition-all ${
                   categoryFilter === cat
                     ? 'bg-teal-600/20 border-teal-500 text-teal-300'
                     : 'bg-gray-800 border-gray-700 text-gray-500 hover:text-gray-300'
@@ -414,13 +414,13 @@ export default function PromptLibrary() {
           </div>
         </div>
 
-        <div className="flex-1" />
+        <div className="hidden md:flex flex-1" />
 
         {/* Add prompt button */}
         <div className="p-4 border-t border-gray-800">
           <button
             onClick={() => setShowAddModal(true)}
-            className="w-full bg-teal-600 hover:bg-teal-500 text-white font-semibold rounded-lg py-2.5 text-sm flex items-center justify-center gap-2 transition-colors"
+            className="w-full bg-teal-600 hover:bg-teal-500 text-white font-semibold rounded-lg py-3 text-sm flex items-center justify-center gap-2 transition-colors"
           >
             <Plus className="w-4 h-4" />
             Save New Prompt
@@ -429,7 +429,7 @@ export default function PromptLibrary() {
       </div>
 
       {/* Right panel: prompt grid */}
-      <div className="flex-1 overflow-y-auto p-6">
+      <div className="flex-1 overflow-y-auto p-4 md:p-6">
         <div className="flex items-center justify-between mb-4">
           <div className="flex items-center gap-2">
             {activeTab === 'templates' ? (
@@ -547,8 +547,8 @@ export default function PromptLibrary() {
 
       {/* Add prompt modal */}
       {showAddModal && (
-        <div className="fixed inset-0 bg-black/70 flex items-center justify-center z-50 p-4">
-          <div className="bg-gray-900 border border-gray-700 rounded-2xl p-6 w-full max-w-lg">
+        <div className="fixed inset-0 bg-black/70 flex items-end md:items-center justify-center z-50 p-0 md:p-4">
+          <div className="bg-gray-900 border border-gray-700 rounded-t-2xl md:rounded-2xl p-6 w-full md:max-w-lg">
             <div className="flex items-center justify-between mb-5">
               <h3 className="text-white font-bold">Save New Prompt</h3>
               <button onClick={() => setShowAddModal(false)} className="text-gray-500 hover:text-white transition-colors">

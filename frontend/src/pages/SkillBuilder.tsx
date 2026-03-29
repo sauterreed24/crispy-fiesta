@@ -1,5 +1,5 @@
 import { useState, useCallback } from 'react'
-import { Hammer, Sparkles, Map, Lightbulb, ChevronRight } from 'lucide-react'
+import { Hammer, Sparkles, Map, Lightbulb, ChevronRight, ArrowLeft } from 'lucide-react'
 import { streamPost } from '../api'
 import StreamingText from '../components/StreamingText'
 
@@ -30,11 +30,13 @@ export default function SkillBuilder() {
   const [output, setOutput] = useState('')
   const [isStreaming, setIsStreaming] = useState(false)
   const [error, setError] = useState('')
+  const [mobileShowOutput, setMobileShowOutput] = useState(false)
 
   const runStream = useCallback(async (path: string, body: unknown) => {
     setOutput('')
     setError('')
     setIsStreaming(true)
+    setMobileShowOutput(true)
     try {
       for await (const chunk of streamPost(path, body)) {
         setOutput(prev => prev + chunk)
@@ -57,10 +59,10 @@ export default function SkillBuilder() {
   }
 
   return (
-    <div className="flex h-full">
+    <div className="flex flex-col md:flex-row md:h-full">
       {/* Left panel */}
-      <div className="w-[380px] flex-shrink-0 border-r border-gray-800 flex flex-col">
-        <div className="p-5 border-b border-gray-800">
+      <div className={`flex flex-col border-b border-gray-800 md:border-b-0 md:border-r md:w-[380px] md:flex-shrink-0 ${mobileShowOutput ? 'hidden md:flex' : 'flex'}`}>
+        <div className="p-4 md:p-5 border-b border-gray-800">
           <div className="flex items-center gap-2 mb-1">
             <Hammer className="w-5 h-5 text-amber-400" />
             <h1 className="text-white font-bold text-lg">Skill Builder</h1>
@@ -76,7 +78,7 @@ export default function SkillBuilder() {
           ]).map(({ id, label, icon: Icon }) => (
             <button
               key={id}
-              onClick={() => { setMode(id); setOutput(''); setError('') }}
+              onClick={() => { setMode(id); setOutput(''); setError(''); setMobileShowOutput(false) }}
               className={`flex-1 flex items-center justify-center gap-1.5 px-3 py-3 text-xs font-medium transition-all border-b-2 ${
                 mode === id
                   ? 'border-amber-500 text-amber-400 bg-amber-500/5'
@@ -89,7 +91,7 @@ export default function SkillBuilder() {
           ))}
         </div>
 
-        <div className="flex-1 overflow-y-auto p-5 space-y-5">
+        <div className="flex-1 overflow-y-auto p-4 md:p-5 space-y-4 md:space-y-5">
           {/* Skill input */}
           <div>
             <label className="text-xs text-gray-400 font-medium mb-1.5 block">Skill to Master</label>
@@ -109,7 +111,7 @@ export default function SkillBuilder() {
                 <button
                   key={label}
                   onClick={() => setSkill(label)}
-                  className={`text-xs px-2.5 py-1 rounded-lg border transition-all flex items-center gap-1 ${
+                  className={`text-xs px-2.5 py-1.5 rounded-lg border transition-all flex items-center gap-1 ${
                     skill === label
                       ? 'bg-amber-600/20 border-amber-500 text-amber-300'
                       : 'bg-gray-800 border-gray-700 text-gray-500 hover:text-gray-300 hover:border-gray-600'
@@ -130,13 +132,13 @@ export default function SkillBuilder() {
                 <button
                   key={l}
                   onClick={() => setLevel(l)}
-                  className={`w-full flex items-center gap-2 px-3 py-2 rounded-lg border text-left text-xs transition-all ${
+                  className={`w-full flex items-center gap-2 px-3 py-2.5 rounded-lg border text-left text-xs transition-all ${
                     level === l
                       ? 'bg-amber-600/20 border-amber-500 text-amber-300'
                       : 'bg-gray-800/50 border-gray-700 text-gray-400 hover:border-gray-600 hover:text-gray-200'
                   }`}
                 >
-                  <div className={`w-2 h-2 rounded-full ${level === l ? 'bg-amber-400' : 'bg-gray-700'}`} />
+                  <div className={`w-2 h-2 rounded-full flex-shrink-0 ${level === l ? 'bg-amber-400' : 'bg-gray-700'}`} />
                   {l}
                 </button>
               ))}
@@ -158,9 +160,7 @@ export default function SkillBuilder() {
 
           {/* What you'll get */}
           <div className="bg-gray-800/30 border border-gray-800 rounded-xl p-4">
-            <p className="text-xs text-gray-500 font-medium mb-2">
-              {mode === 'roadmap' ? "What you'll get:" : "What you'll get:"}
-            </p>
+            <p className="text-xs text-gray-500 font-medium mb-2">What you'll get:</p>
             {mode === 'roadmap' ? (
               <ul className="text-xs text-gray-500 space-y-1">
                 <li className="flex items-start gap-2"><ChevronRight className="w-3 h-3 text-amber-500 mt-0.5 flex-shrink-0" />Phase-by-phase learning roadmap</li>
@@ -179,11 +179,11 @@ export default function SkillBuilder() {
           </div>
         </div>
 
-        <div className="p-5 border-t border-gray-800">
+        <div className="p-4 md:p-5 border-t border-gray-800">
           <button
             onClick={mode === 'roadmap' ? handleBuildRoadmap : handleProjectIdeas}
             disabled={isStreaming || !skill.trim()}
-            className="w-full bg-amber-600 hover:bg-amber-500 disabled:opacity-40 disabled:cursor-not-allowed text-white font-semibold rounded-lg py-2.5 text-sm flex items-center justify-center gap-2 transition-colors"
+            className="w-full bg-amber-600 hover:bg-amber-500 disabled:opacity-40 disabled:cursor-not-allowed text-white font-semibold rounded-lg py-3 text-sm flex items-center justify-center gap-2 transition-colors"
           >
             {mode === 'roadmap' ? <Map className="w-4 h-4" /> : <Lightbulb className="w-4 h-4" />}
             {isStreaming
@@ -195,9 +195,12 @@ export default function SkillBuilder() {
       </div>
 
       {/* Right panel: output */}
-      <div className="flex-1 flex flex-col min-w-0">
-        <div className="p-4 border-b border-gray-800 flex items-center gap-2">
-          <Sparkles className="w-4 h-4 text-amber-400" />
+      <div className={`flex-1 flex flex-col min-h-0 ${mobileShowOutput ? 'flex' : 'hidden md:flex'}`}>
+        <div className="p-4 border-b border-gray-800 flex items-center gap-2 flex-wrap">
+          <button onClick={() => setMobileShowOutput(false)} className="md:hidden mr-1 -ml-1 p-1 text-gray-500 hover:text-white">
+            <ArrowLeft className="w-4 h-4" />
+          </button>
+          <Sparkles className="w-4 h-4 text-amber-400 flex-shrink-0" />
           <span className="text-gray-300 text-sm font-medium">
             {mode === 'roadmap' ? 'Personalized Learning Roadmap' : 'AI-Powered Project Ideas'}
           </span>
@@ -213,18 +216,18 @@ export default function SkillBuilder() {
           )}
         </div>
 
-        <div className="flex-1 overflow-y-auto p-6">
+        <div className="flex-1 overflow-y-auto p-4 md:p-6">
           {error && (
             <div className="bg-red-900/20 border border-red-500/30 rounded-xl p-4 text-red-400 text-sm mb-4">
               {error}
             </div>
           )}
           {!output && !isStreaming && !error && (
-            <div className="flex flex-col items-center justify-center h-full text-center">
+            <div className="flex flex-col items-center justify-center h-full text-center py-16 md:py-0">
               <div className="w-16 h-16 rounded-2xl bg-gradient-to-br from-amber-600 to-orange-700 flex items-center justify-center mb-5 shadow-lg shadow-amber-900/30">
                 {mode === 'roadmap' ? <Map className="w-8 h-8 text-white" /> : <Lightbulb className="w-8 h-8 text-white" />}
               </div>
-              <p className="text-gray-500 text-sm font-medium mb-2">
+              <p className="text-gray-500 text-sm font-medium mb-2 max-w-sm">
                 {mode === 'roadmap'
                   ? 'Get a personalized, AI-accelerated learning roadmap for any skill'
                   : 'Get 5 high-impact project ideas that build real expertise'}

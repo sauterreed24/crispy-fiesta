@@ -1,5 +1,5 @@
 import { useState, useCallback } from 'react'
-import { BookOpen, Sparkles, Search, ChevronRight, Cpu, Brain, Database, Layers, Shield, Zap, GitBranch, Eye } from 'lucide-react'
+import { BookOpen, Sparkles, Search, ChevronRight, Cpu, Brain, Database, Layers, Shield, Zap, GitBranch, Eye, ArrowLeft } from 'lucide-react'
 import { streamPost } from '../api'
 import StreamingText from '../components/StreamingText'
 
@@ -46,7 +46,7 @@ const TOPIC_CATEGORIES = [
     topics: [
       'What makes Claude different from GPT-4?',
       'How do Llama/Mistral open models compare to frontier models?',
-      'What is unique about Google Gemini\'s architecture?',
+      "What is unique about Google Gemini's architecture?",
       'What are mixture-of-experts (MoE) models?',
       'How do multimodal models like GPT-4V process images?',
       'What is speculative decoding and how does it speed up inference?',
@@ -105,14 +105,9 @@ const MODEL_PAIRS = [
 ]
 
 const COMPARE_TASKS = [
-  'complex reasoning',
-  'code generation',
-  'creative writing',
-  'instruction following',
-  'long-context tasks',
-  'mathematical reasoning',
-  'prompt engineering',
-  'safety and refusals',
+  'complex reasoning', 'code generation', 'creative writing',
+  'instruction following', 'long-context tasks', 'mathematical reasoning',
+  'prompt engineering', 'safety and refusals',
 ]
 
 export default function KnowledgeHub({ onProgressUpdate }: KnowledgeHubProps) {
@@ -126,11 +121,13 @@ export default function KnowledgeHub({ onProgressUpdate }: KnowledgeHubProps) {
   const [isStreaming, setIsStreaming] = useState(false)
   const [error, setError] = useState('')
   const [activeCategory, setActiveCategory] = useState<string | null>(null)
+  const [mobileShowOutput, setMobileShowOutput] = useState(false)
 
   const runStream = useCallback(async (path: string, body: unknown) => {
     setOutput('')
     setError('')
     setIsStreaming(true)
+    setMobileShowOutput(true)
     try {
       for await (const chunk of streamPost(path, body)) {
         setOutput(prev => prev + chunk)
@@ -149,8 +146,7 @@ export default function KnowledgeHub({ onProgressUpdate }: KnowledgeHubProps) {
   }
 
   const handleCompare = () => {
-    const task = customTask.trim() || compareTask
-    runStream('/knowledge/compare-models', { models: compareModels, task })
+    runStream('/knowledge/compare-models', { models: compareModels, task: customTask.trim() || compareTask })
   }
 
   const handleTopicClick = (topic: string) => {
@@ -158,68 +154,55 @@ export default function KnowledgeHub({ onProgressUpdate }: KnowledgeHubProps) {
     setMode('ask')
     setOutput('')
     setError('')
+    setMobileShowOutput(false)
   }
 
   return (
-    <div className="flex h-full">
-      {/* Left panel */}
-      <div className="w-[420px] flex-shrink-0 border-r border-gray-800 flex flex-col">
-        <div className="p-5 border-b border-gray-800">
+    <div className="flex flex-col md:flex-row md:h-full">
+      {/* ── Left panel ── */}
+      <div className={`flex flex-col border-b border-gray-800 md:border-b-0 md:border-r md:w-[420px] md:flex-shrink-0 ${mobileShowOutput ? 'hidden md:flex' : 'flex'}`}>
+        <div className="p-4 md:p-5 border-b border-gray-800">
           <div className="flex items-center gap-2 mb-1">
             <BookOpen className="w-5 h-5 text-cyan-400" />
             <h1 className="text-white font-bold text-lg">Knowledge Hub</h1>
           </div>
-          <p className="text-gray-500 text-sm">Deep-dive into AI/ML concepts. Ask anything.</p>
+          <p className="text-gray-500 text-xs">Deep-dive into AI/ML concepts. Ask anything.</p>
         </div>
 
         {/* Mode toggle */}
         <div className="flex border-b border-gray-800">
           {([
             { id: 'ask' as Mode, label: 'Ask & Learn', icon: Search },
-            { id: 'compare' as Mode, label: 'Model Comparisons', icon: GitBranch },
+            { id: 'compare' as Mode, label: 'Compare Models', icon: GitBranch },
           ]).map(({ id, label, icon: Icon }) => (
-            <button
-              key={id}
-              onClick={() => { setMode(id); setOutput(''); setError('') }}
+            <button key={id} onClick={() => { setMode(id); setOutput(''); setError(''); setMobileShowOutput(false) }}
               className={`flex-1 flex items-center justify-center gap-1.5 px-3 py-3 text-xs font-medium transition-all border-b-2 ${
-                mode === id
-                  ? 'border-cyan-500 text-cyan-400 bg-cyan-500/5'
-                  : 'border-transparent text-gray-500 hover:text-gray-300'
-              }`}
-            >
-              <Icon className="w-3.5 h-3.5" />
-              {label}
+                mode === id ? 'border-cyan-500 text-cyan-400 bg-cyan-500/5' : 'border-transparent text-gray-500 hover:text-gray-300'
+              }`}>
+              <Icon className="w-3.5 h-3.5" />{label}
             </button>
           ))}
         </div>
 
-        <div className="flex-1 overflow-y-auto p-5">
+        <div className="p-4 md:p-5 space-y-4 md:flex-1 md:overflow-y-auto">
           {mode === 'ask' && (
-            <div className="space-y-4">
+            <>
               <div>
                 <label className="text-xs text-gray-400 font-medium mb-1.5 block">Your Question</label>
-                <textarea
-                  value={question}
-                  onChange={e => setQuestion(e.target.value)}
+                <textarea value={question} onChange={e => setQuestion(e.target.value)}
                   placeholder="Ask anything about AI, ML, LLMs, prompt engineering..."
                   className="w-full bg-gray-800 border border-gray-700 text-gray-100 rounded-lg p-3 text-sm resize-none focus:outline-none focus:border-cyan-500 transition-colors placeholder-gray-600"
-                  rows={4}
-                />
+                  rows={3} />
               </div>
 
               <div>
                 <label className="text-xs text-gray-400 font-medium mb-2 block">Explanation Depth</label>
                 <div className="flex gap-2">
                   {(['beginner', 'intermediate', 'expert'] as const).map(d => (
-                    <button
-                      key={d}
-                      onClick={() => setDepth(d)}
-                      className={`flex-1 py-1.5 text-xs font-medium rounded-lg transition-all border ${
-                        depth === d
-                          ? 'bg-cyan-600/20 border-cyan-500 text-cyan-300'
-                          : 'bg-gray-800 border-gray-700 text-gray-500 hover:border-gray-600 hover:text-gray-300'
-                      }`}
-                    >
+                    <button key={d} onClick={() => setDepth(d)}
+                      className={`flex-1 py-2 text-xs font-medium rounded-lg transition-all border ${
+                        depth === d ? 'bg-cyan-600/20 border-cyan-500 text-cyan-300' : 'bg-gray-800 border-gray-700 text-gray-500 hover:border-gray-600 hover:text-gray-300'
+                      }`}>
                       {d.charAt(0).toUpperCase() + d.slice(1)}
                     </button>
                   ))}
@@ -228,27 +211,22 @@ export default function KnowledgeHub({ onProgressUpdate }: KnowledgeHubProps) {
 
               {/* Topic browser */}
               <div>
-                <p className="text-xs text-gray-400 font-medium mb-3">Browse by Topic</p>
-                <div className="space-y-2">
+                <p className="text-xs text-gray-400 font-medium mb-2">Browse by Topic</p>
+                <div className="space-y-1.5">
                   {TOPIC_CATEGORIES.map(({ name, icon: Icon, color, bg, topics }) => (
                     <div key={name}>
-                      <button
-                        onClick={() => setActiveCategory(activeCategory === name ? null : name)}
-                        className={`w-full flex items-center gap-2 px-3 py-2.5 rounded-lg border ${bg} transition-all`}
-                      >
+                      <button onClick={() => setActiveCategory(activeCategory === name ? null : name)}
+                        className={`w-full flex items-center gap-2 px-3 py-2.5 rounded-lg border ${bg} transition-all`}>
                         <Icon className={`w-3.5 h-3.5 ${color} flex-shrink-0`} />
                         <span className="text-xs font-medium text-gray-300 flex-1 text-left">{name}</span>
                         <ChevronRight className={`w-3 h-3 text-gray-600 transition-transform ${activeCategory === name ? 'rotate-90' : ''}`} />
                       </button>
                       {activeCategory === name && (
-                        <div className="mt-1 ml-2 space-y-1">
+                        <div className="mt-1 ml-2 space-y-0.5">
                           {topics.map(topic => (
-                            <button
-                              key={topic}
-                              onClick={() => handleTopicClick(topic)}
-                              className="w-full text-left text-xs text-gray-400 hover:text-white py-2 px-3 rounded-lg hover:bg-gray-800 transition-all flex items-start gap-2"
-                            >
-                              <span className="text-gray-700 mt-0.5">›</span>
+                            <button key={topic} onClick={() => handleTopicClick(topic)}
+                              className="w-full text-left text-xs text-gray-400 hover:text-white py-2 px-3 rounded-lg hover:bg-gray-800 transition-all flex items-start gap-2">
+                              <span className="text-gray-700 mt-0.5 flex-shrink-0">›</span>
                               {topic}
                             </button>
                           ))}
@@ -258,7 +236,7 @@ export default function KnowledgeHub({ onProgressUpdate }: KnowledgeHubProps) {
                   ))}
                 </div>
               </div>
-            </div>
+            </>
           )}
 
           {mode === 'compare' && (
@@ -267,15 +245,12 @@ export default function KnowledgeHub({ onProgressUpdate }: KnowledgeHubProps) {
                 <label className="text-xs text-gray-400 font-medium mb-2 block">Quick Comparisons</label>
                 <div className="space-y-1.5">
                   {MODEL_PAIRS.map(({ label, models }) => (
-                    <button
-                      key={label}
-                      onClick={() => setCompareModels(models)}
+                    <button key={label} onClick={() => setCompareModels(models)}
                       className={`w-full text-left text-xs px-3 py-2.5 rounded-lg border transition-all ${
                         JSON.stringify(compareModels) === JSON.stringify(models)
                           ? 'bg-cyan-600/20 border-cyan-500 text-cyan-300'
                           : 'bg-gray-800 border-gray-700 text-gray-400 hover:border-gray-600 hover:text-gray-200'
-                      }`}
-                    >
+                      }`}>
                       {label}
                     </button>
                   ))}
@@ -286,15 +261,10 @@ export default function KnowledgeHub({ onProgressUpdate }: KnowledgeHubProps) {
                 <label className="text-xs text-gray-400 font-medium mb-2 block">Compare For Task</label>
                 <div className="flex flex-wrap gap-1.5">
                   {COMPARE_TASKS.map(task => (
-                    <button
-                      key={task}
-                      onClick={() => setCompareTask(task)}
-                      className={`text-xs px-2.5 py-1 rounded-full border transition-all ${
-                        compareTask === task
-                          ? 'bg-cyan-600/20 border-cyan-500 text-cyan-300'
-                          : 'bg-gray-800 border-gray-700 text-gray-500 hover:text-gray-300'
-                      }`}
-                    >
+                    <button key={task} onClick={() => setCompareTask(task)}
+                      className={`text-xs px-2.5 py-1.5 rounded-full border transition-all ${
+                        compareTask === task ? 'bg-cyan-600/20 border-cyan-500 text-cyan-300' : 'bg-gray-800 border-gray-700 text-gray-500 hover:text-gray-300'
+                      }`}>
                       {task}
                     </button>
                   ))}
@@ -303,12 +273,9 @@ export default function KnowledgeHub({ onProgressUpdate }: KnowledgeHubProps) {
 
               <div>
                 <label className="text-xs text-gray-400 font-medium mb-1.5 block">Or custom task</label>
-                <input
-                  value={customTask}
-                  onChange={e => setCustomTask(e.target.value)}
+                <input value={customTask} onChange={e => setCustomTask(e.target.value)}
                   placeholder="e.g. summarizing legal documents"
-                  className="w-full bg-gray-800 border border-gray-700 text-gray-100 rounded-lg px-3 py-2 text-sm focus:outline-none focus:border-cyan-500 placeholder-gray-600"
-                />
+                  className="w-full bg-gray-800 border border-gray-700 text-gray-100 rounded-lg px-3 py-2.5 text-sm focus:outline-none focus:border-cyan-500 placeholder-gray-600" />
               </div>
 
               <div className="bg-gray-800/50 border border-gray-700 rounded-lg p-3">
@@ -320,22 +287,16 @@ export default function KnowledgeHub({ onProgressUpdate }: KnowledgeHubProps) {
           )}
         </div>
 
-        <div className="p-5 border-t border-gray-800">
+        <div className="p-4 md:p-5 border-t border-gray-800">
           {mode === 'ask' ? (
-            <button
-              onClick={handleAsk}
-              disabled={isStreaming || !question.trim()}
-              className="w-full bg-cyan-600 hover:bg-cyan-500 disabled:opacity-40 disabled:cursor-not-allowed text-white font-semibold rounded-lg py-2.5 text-sm flex items-center justify-center gap-2 transition-colors"
-            >
+            <button onClick={handleAsk} disabled={isStreaming || !question.trim()}
+              className="w-full bg-cyan-600 hover:bg-cyan-500 disabled:opacity-40 disabled:cursor-not-allowed text-white font-semibold rounded-lg py-3 text-sm flex items-center justify-center gap-2 transition-colors">
               <Search className="w-4 h-4" />
               {isStreaming ? 'Thinking...' : 'Get Expert Answer (+5 XP)'}
             </button>
           ) : (
-            <button
-              onClick={handleCompare}
-              disabled={isStreaming}
-              className="w-full bg-cyan-600 hover:bg-cyan-500 disabled:opacity-40 disabled:cursor-not-allowed text-white font-semibold rounded-lg py-2.5 text-sm flex items-center justify-center gap-2 transition-colors"
-            >
+            <button onClick={handleCompare} disabled={isStreaming}
+              className="w-full bg-cyan-600 hover:bg-cyan-500 disabled:opacity-40 disabled:cursor-not-allowed text-white font-semibold rounded-lg py-3 text-sm flex items-center justify-center gap-2 transition-colors">
               <Eye className="w-4 h-4" />
               {isStreaming ? 'Comparing...' : 'Compare Models'}
             </button>
@@ -343,9 +304,12 @@ export default function KnowledgeHub({ onProgressUpdate }: KnowledgeHubProps) {
         </div>
       </div>
 
-      {/* Right panel: output */}
-      <div className="flex-1 flex flex-col min-w-0">
+      {/* ── Right panel: output ── */}
+      <div className={`flex-1 flex flex-col min-h-0 ${mobileShowOutput ? 'flex' : 'hidden md:flex'}`}>
         <div className="p-4 border-b border-gray-800 flex items-center gap-2">
+          <button onClick={() => setMobileShowOutput(false)} className="md:hidden mr-1 -ml-1 p-1 text-gray-500 hover:text-white">
+            <ArrowLeft className="w-4 h-4" />
+          </button>
           <Sparkles className="w-4 h-4 text-cyan-400" />
           <span className="text-gray-300 text-sm font-medium">
             {mode === 'ask' ? 'Expert Knowledge' : 'Model Comparison'}
@@ -355,9 +319,7 @@ export default function KnowledgeHub({ onProgressUpdate }: KnowledgeHubProps) {
               depth === 'beginner' ? 'bg-emerald-500/20 text-emerald-400' :
               depth === 'intermediate' ? 'bg-amber-500/20 text-amber-400' :
               'bg-rose-500/20 text-rose-400'
-            }`}>
-              {depth}
-            </span>
+            }`}>{depth}</span>
           )}
           {isStreaming && (
             <span className="text-xs text-cyan-400 bg-cyan-500/10 px-2 py-0.5 rounded-full animate-pulse ml-auto">
@@ -366,26 +328,20 @@ export default function KnowledgeHub({ onProgressUpdate }: KnowledgeHubProps) {
           )}
         </div>
 
-        <div className="flex-1 overflow-y-auto p-6">
+        <div className="flex-1 overflow-y-auto p-4 md:p-6 min-h-96 md:min-h-0">
           {error && (
-            <div className="bg-red-900/20 border border-red-500/30 rounded-xl p-4 text-red-400 text-sm mb-4">
-              {error}
-            </div>
+            <div className="bg-red-900/20 border border-red-500/30 rounded-xl p-4 text-red-400 text-sm mb-4">{error}</div>
           )}
           {!output && !isStreaming && !error && (
-            <div className="flex flex-col items-center justify-center h-full text-center">
-              <BookOpen className="w-12 h-12 text-gray-700 mb-4" />
-              <p className="text-gray-500 text-sm font-medium">
-                {mode === 'ask'
-                  ? 'Ask any AI/ML question — from basics to cutting-edge research'
-                  : 'Compare models to understand their strengths and optimal use cases'}
+            <div className="flex flex-col items-center justify-center h-full text-center py-12">
+              <BookOpen className="w-10 h-10 text-gray-700 mb-4" />
+              <p className="text-gray-500 text-sm">
+                {mode === 'ask' ? 'Ask any AI/ML question for an expert answer' : 'Compare models to understand when to use each'}
               </p>
               <p className="text-gray-700 text-xs mt-2">+5 XP per question answered</p>
             </div>
           )}
-          {(output || isStreaming) && (
-            <StreamingText text={output} isStreaming={isStreaming} />
-          )}
+          {(output || isStreaming) && <StreamingText text={output} isStreaming={isStreaming} />}
         </div>
       </div>
     </div>

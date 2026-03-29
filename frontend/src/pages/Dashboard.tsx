@@ -64,21 +64,24 @@ export default function Dashboard({ progress, onNavigate }: DashboardProps) {
   const greeting = hour < 12 ? 'Good morning' : hour < 17 ? 'Good afternoon' : 'Good evening'
 
   return (
-    <div className="p-6 max-w-6xl mx-auto space-y-6">
+    <div className="p-4 md:p-6 max-w-6xl mx-auto space-y-4 md:space-y-6">
       {/* Hero header */}
-      <div className="bg-gradient-to-br from-gray-900 to-gray-900/50 border border-gray-800 rounded-2xl p-6">
-        <div className="flex items-start justify-between">
-          <div>
+      <div className="bg-gradient-to-br from-gray-900 to-gray-900/50 border border-gray-800 rounded-2xl p-4 md:p-6">
+        <div className="flex items-start justify-between gap-4">
+          <div className="min-w-0">
             <p className="text-gray-400 text-sm mb-1">{greeting} — let's get smarter</p>
-            <h1 className="text-2xl font-bold text-white mb-2">AI Mastery Hub</h1>
-            <p className="text-gray-400 text-sm max-w-lg">
+            <h1 className="text-xl md:text-2xl font-bold text-white mb-2">AI Mastery Hub</h1>
+            <p className="text-gray-400 text-sm max-w-lg hidden sm:block">
               Your personal prompt engineering training ground. Learn techniques used by researchers at Anthropic, OpenAI, and Google — then practice until you're better than them.
             </p>
+            <p className="text-gray-400 text-xs sm:hidden">
+              Your prompt engineering training ground.
+            </p>
           </div>
-          <div className="flex-shrink-0 ml-6">
-            <div className="bg-gray-800 border border-gray-700 rounded-xl p-4 text-center min-w-[120px]">
-              <div className="text-3xl font-black text-white mb-1">Lv.{level}</div>
-              <div className="text-violet-400 text-sm font-semibold mb-2">{title}</div>
+          <div className="flex-shrink-0">
+            <div className="bg-gray-800 border border-gray-700 rounded-xl p-3 md:p-4 text-center min-w-[100px] md:min-w-[120px]">
+              <div className="text-2xl md:text-3xl font-black text-white mb-1">Lv.{level}</div>
+              <div className="text-violet-400 text-xs md:text-sm font-semibold mb-2">{title}</div>
               <div className="w-full bg-gray-700 rounded-full h-1.5">
                 <div
                   className="h-1.5 rounded-full bg-gradient-to-r from-violet-500 to-purple-400"
@@ -92,7 +95,7 @@ export default function Dashboard({ progress, onNavigate }: DashboardProps) {
       </div>
 
       {/* Stats row */}
-      <div className="grid grid-cols-4 gap-4">
+      <div className="grid grid-cols-2 md:grid-cols-4 gap-3 md:gap-4">
         {[
           { label: 'Total XP', value: progress.total_xp, icon: Zap, color: 'text-violet-400', bg: 'bg-violet-500/10 border-violet-500/20' },
           { label: 'Prompts Evaluated', value: progress.prompts_evaluated, icon: FlaskConical, color: 'text-cyan-400', bg: 'bg-cyan-500/10 border-cyan-500/20' },
@@ -111,11 +114,11 @@ export default function Dashboard({ progress, onNavigate }: DashboardProps) {
 
       {/* Quick actions */}
       <div>
-        <div className="flex items-center gap-2 mb-4">
+        <div className="flex items-center gap-2 mb-3 md:mb-4">
           <Star className="w-4 h-4 text-amber-400" />
           <h2 className="text-white font-bold">Quick Start</h2>
         </div>
-        <div className="grid grid-cols-2 gap-3">
+        <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
           {QUICK_ACTIONS.map(({ page, icon: Icon, label, desc, color }) => (
             <button
               key={page}
@@ -141,7 +144,7 @@ export default function Dashboard({ progress, onNavigate }: DashboardProps) {
 
       {/* Techniques reference */}
       <div>
-        <div className="flex items-center justify-between mb-4">
+        <div className="flex items-center justify-between mb-3 md:mb-4">
           <div className="flex items-center gap-2">
             <Brain className="w-4 h-4 text-violet-400" />
             <h2 className="text-white font-bold">Core Techniques</h2>
@@ -153,7 +156,7 @@ export default function Dashboard({ progress, onNavigate }: DashboardProps) {
             Practice in Lab <ChevronRight className="w-3 h-3" />
           </button>
         </div>
-        <div className="grid grid-cols-2 gap-3">
+        <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
           {TECHNIQUES.map((t) => (
             <div
               key={t.name}
@@ -206,7 +209,7 @@ export default function Dashboard({ progress, onNavigate }: DashboardProps) {
       </div>
 
       {/* Navigation shortcuts */}
-      <div className="grid grid-cols-3 gap-3">
+      <div className="grid grid-cols-1 sm:grid-cols-3 gap-3">
         {[
           { page: 'knowledge' as Page, icon: BookOpen, label: 'Knowledge Hub', desc: 'Ask any AI/ML question', xp: '+5 XP' },
           { page: 'challenges' as Page, icon: Target, label: 'Daily Challenge', desc: 'Sharpen your prompting', xp: '+25 XP' },

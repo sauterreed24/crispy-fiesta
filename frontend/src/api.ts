@@ -1,10 +1,11 @@
 const BASE = '/api'
 
-export async function* streamPost(path: string, body: unknown): AsyncGenerator<string> {
+export async function* streamPost(path: string, body: unknown, signal?: AbortSignal): AsyncGenerator<string> {
   const res = await fetch(`${BASE}${path}`, {
     method: 'POST',
     headers: { 'Content-Type': 'application/json' },
     body: JSON.stringify(body),
+    signal,
   })
 
   if (!res.ok) {

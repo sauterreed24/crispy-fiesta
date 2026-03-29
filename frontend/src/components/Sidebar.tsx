@@ -1,7 +1,17 @@
-import { Brain, FlaskConical, BookOpen, Target, Hammer, Library, ChevronRight, Zap, Flame } from 'lucide-react'
+import {
+  Brain, FlaskConical, BookOpen, Target, Hammer, Library,
+  ChevronRight, Zap, Flame, Bot,
+} from 'lucide-react'
 import type { Progress } from '../App'
 
-export type Page = 'dashboard' | 'prompt-lab' | 'knowledge' | 'challenges' | 'skill-builder' | 'library'
+export type Page =
+  | 'dashboard'
+  | 'prompt-lab'
+  | 'knowledge'
+  | 'challenges'
+  | 'skill-builder'
+  | 'library'
+  | 'personal-agent'
 
 interface SidebarProps {
   currentPage: Page
@@ -16,6 +26,16 @@ const navItems: { id: Page; label: string; icon: React.ComponentType<{ className
   { id: 'challenges', label: 'Challenges', icon: Target },
   { id: 'skill-builder', label: 'Skill Builder', icon: Hammer },
   { id: 'library', label: 'Prompt Library', icon: Library },
+  { id: 'personal-agent', label: 'Personal Agent', icon: Bot },
+]
+
+const mobileNavItems: { id: Page; label: string; icon: React.ComponentType<{ className?: string }> }[] = [
+  { id: 'dashboard', label: 'Home', icon: Brain },
+  { id: 'prompt-lab', label: 'Lab', icon: FlaskConical },
+  { id: 'knowledge', label: 'Learn', icon: BookOpen },
+  { id: 'challenges', label: 'Test', icon: Target },
+  { id: 'skill-builder', label: 'Build', icon: Hammer },
+  { id: 'library', label: 'Library', icon: Library },
 ]
 
 interface LevelInfo {
@@ -44,12 +64,13 @@ function getLevel(xp: number): LevelInfo {
   return { level: idx + 1, title: thresholds[idx].title, currentXP: xp, nextXP }
 }
 
+// Desktop sidebar — hidden on mobile
 export default function Sidebar({ currentPage, onNavigate, progress }: SidebarProps) {
   const { level, title, currentXP, nextXP } = getLevel(progress.total_xp)
   const xpPct = Math.min(100, Math.round((currentXP / nextXP) * 100))
 
   return (
-    <aside className="w-64 bg-gray-900 border-r border-gray-800 flex flex-col h-screen sticky top-0 flex-shrink-0">
+    <aside className="hidden md:flex w-64 bg-gray-900 border-r border-gray-800 flex-col h-full flex-shrink-0">
       {/* Brand */}
       <div className="p-5 border-b border-gray-800">
         <div className="flex items-center gap-3 mb-4">
@@ -91,7 +112,7 @@ export default function Sidebar({ currentPage, onNavigate, progress }: SidebarPr
       </div>
 
       {/* Navigation */}
-      <nav className="flex-1 p-4 space-y-1">
+      <nav className="flex-1 p-4 space-y-1 overflow-y-auto">
         {navItems.map(({ id, label, icon: Icon }) => (
           <button
             key={id}
@@ -137,5 +158,38 @@ function StatChip({ label, value, color }: { label: string; value: number; color
       <p className={`font-bold text-sm ${colorMap[color] || 'text-white'}`}>{value}</p>
       <p className="text-gray-500 text-xs">{label}</p>
     </div>
+  )
+}
+
+// Mobile bottom nav — visible on small screens only
+export function MobileNav({
+  currentPage,
+  onNavigate,
+}: {
+  currentPage: Page
+  onNavigate: (page: Page) => void
+}) {
+  return (
+    <nav
+      className="flex md:hidden bg-gray-900 border-t border-gray-800"
+      style={{ paddingBottom: 'max(8px, env(safe-area-inset-bottom))' }}
+    >
+      {mobileNavItems.map(({ id, label, icon: Icon }) => (
+        <button
+          key={id}
+          onClick={() => onNavigate(id)}
+          className={`flex-1 flex flex-col items-center justify-center py-2.5 gap-0.5 transition-colors min-h-[52px] ${
+            currentPage === id
+              ? 'text-violet-400'
+              : 'text-gray-600 active:text-gray-300'
+          }`}
+        >
+          <Icon className="w-5 h-5" />
+          <span className={`text-[10px] font-medium leading-tight ${currentPage === id ? 'text-violet-400' : 'text-gray-600'}`}>
+            {label}
+          </span>
+        </button>
+      ))}
+    </nav>
   )
 }
