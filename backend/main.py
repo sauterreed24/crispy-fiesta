@@ -34,7 +34,7 @@ app.add_middleware(
 
 client = anthropic.Anthropic(api_key=os.environ.get("ANTHROPIC_API_KEY", ""))
 
-MODEL = "claude-opus-4-6"
+MODEL = "claude-haiku-4-5-20251001"
 
 
 # ─── Pydantic models ─────────────────────────────────────────────────────────
@@ -140,12 +140,15 @@ Analyze: sentence length, tone, vocabulary, how they open/close, level of formal
 """
 
 
-async def stream_claude(prompt: str, system: str = BASE_SDR_PROMPT) -> AsyncIterator[str]:
+async def stream_claude(
+    prompt: str,
+    system: str = BASE_SDR_PROMPT,
+    max_tokens: int = 1000,
+) -> AsyncIterator[str]:
     """Stream Claude responses as SSE data chunks."""
     with client.messages.stream(
         model=MODEL,
-        max_tokens=2048,
-        thinking={"type": "adaptive"},
+        max_tokens=max_tokens,
         system=system,
         messages=[{"role": "user", "content": prompt}]
     ) as stream:
@@ -377,7 +380,7 @@ Top 3 things to do differently next call with this prospect or similar calls.
 Keep it real, direct, and actionable. This rep wants the truth, not cheerleading."""
 
     return StreamingResponse(
-        stream_claude(prompt),
+        stream_claude(prompt, max_tokens=1200),
         media_type="text/event-stream",
         headers={"Cache-Control": "no-cache", "X-Accel-Buffering": "no"}
     )
@@ -616,7 +619,7 @@ Give me 5 concrete prompts/commands I can execute right now.
 Style: crisp, tactical, high agency. No fluff."""
 
     return StreamingResponse(
-        stream_claude(prompt, system=system),
+        stream_claude(prompt, system=system, max_tokens=2000),
         media_type="text/event-stream",
         headers={"Cache-Control": "no-cache", "X-Accel-Buffering": "no"}
     )
