@@ -1,0 +1,45 @@
+# This workflow will run in the CI pipeline.
+name: CI
+
+on:
+  push:
+    branches:
+      - improvements/safety-perf-2026-03-29
+  pull_request:
+    branches:
+      - improvements/safety-perf-2026-03-29
+
+jobs:
+  lint:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v2
+
+      - name: Set up Python
+        uses: actions/setup-python@v2
+        with:
+          python-version: '3.x'
+
+      - name: Install dependencies
+        run: |
+          pip install -r requirements.txt
+          npm install
+
+      - name: Run Python lint/typecheck
+        run: |
+          ruff .
+          mypy .
+
+      - name: Run backend tests
+        run: |
+          pytest
+
+      - name: Run frontend lint/build
+        run: |
+          npm run lint && npm run build
+
+      - name: Run secret scan
+        run: |
+          gitleaks --path=. --verbose --report-path=reports/gitleaks_report.txt
+          # Ensure GIT secrets configuration is set to run as analysis only.
